@@ -1,0 +1,25 @@
+{
+	"name": "@marianmeres/migrate",
+	"version": "1.0.0",
+	"exports": "./src/mod.ts",
+	"tasks": {
+		"test": "deno test --watch",
+		"npm:build": "deno run -A scripts/build-npm.ts",
+		"npm:publish": "deno run -A scripts/build-npm.ts && cd ./.npm-dist && npm publish --access=public"
+	},
+	"imports": {
+		"@marianmeres/item-collection": "jsr:@marianmeres/item-collection@^1.2.11",
+		"@std/assert": "jsr:@std/assert@1",
+		"@std/cli": "jsr:@std/cli@^1.0.17",
+		"@std/fs": "jsr:@std/fs@^1.0.17",
+		"@std/path": "jsr:@std/path@^1.0.9",
+		"dotenv": "npm:dotenv@^16.5.0",
+		"pg": "npm:pg@^8.15.6"
+	},
+	"fmt": {
+		"useTabs": true,
+		"lineWidth": 90,
+		"indentWidth": 4,
+		"proseWrap": "preserve"
+	}
+}

@@ -13,7 +13,6 @@ export async function main() {
 		boolean: ["help", "h", "up", "down", "verbose", "uninstall"],
 		string: ["target"],
 	});
-	// console.log(flags, flags.up || flags.down || flags.uninstall);
 
 	const showHelp = flags.help || flags.h;
 	const updown = (flags.up || flags.down) && flags.target;
@@ -21,7 +20,10 @@ export async function main() {
 
 	if (showHelp || !(updown || uninstall)) {
 		return console.log(
-			`\n    deno run -A ${_dirname}/${_basename} [--up|--down] --target=target [--verbose]\n`
+			`\nUsage:
+    deno run -A ${_dirname}/${_basename} [--up|--down] --target=target [--verbose]
+    deno run -A ${_dirname}/${_basename} --uninstall [--verbose]
+`
 		);
 	}
 
@@ -38,11 +40,14 @@ export async function main() {
 	await add_versions(migrate);
 
 	//
+	let res;
 	if (uninstall) {
-		return await migrate.uninstall();
+		res = await migrate.uninstall();
 	} else {
-		return await migrate[flags.up ? "up" : "down"](flags.target);
+		res = await migrate[flags.up ? "up" : "down"](flags.target);
 	}
+
+	console.log("OK", res);
 }
 
 /** Internal dir walker */
@@ -75,8 +80,7 @@ async function add_versions(
 // run now...
 if (import.meta.main) {
 	try {
-		const res = await main();
-		console.log(`OK`, res);
+		await main();
 		Deno.exit(0);
 	} catch (e) {
 		console.error(e);

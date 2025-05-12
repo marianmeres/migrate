@@ -47,7 +47,7 @@ export async function getActiveVersion(context: any) {
 		const { rows } = await client.query(
 			`select version from __migrate__ order by id desc limit 1`
 		);
-		return rows[0]?.version ?? undefined;
+		return rows[0]?.version ?? undefined; // we want undefined, not null here
 	} catch (e) {
 		throw e;
 	} finally {

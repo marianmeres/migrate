@@ -1,6 +1,7 @@
 # @marianmeres/migrate
 
-A general-purpose extensible versioning framework for managing incremental, bi-directional changes.
+A general-purpose extensible versioning framework for managing incremental, bi-directional 
+changes.
 
 Possible use cases may include: 
 - db migrations, 
@@ -8,10 +9,10 @@ Possible use cases may include:
 - progress change tracking,
 - install/uninstall systems...
 
-Under the hood it is essentially a collection of `up` and `down` callback pairs labeled with a semantic version string.
+## How does it work?
 
-The support for semver is essential, as it allows upgrades or downgrades within
-all 3 semver segments (major, minor, patch).
+Under the hood it is essentially a collection of `up` and `down` callback pairs labeled 
+with a semantic version string.
 
 ## Installation
 ```sh
@@ -52,7 +53,7 @@ const current = await m.getCurrentVersion();
 // Migrate up or down from current to defined target.
 // Will be a no-op if there's no available up/down match.
 // Will throw if target does not exist.
-// Returns the number of success migration steps.
+// Returns the number of applied migration steps.
 const count = await m.up('latest' | 'major' | 'minor' | 'patch' | version);
 const count = await m.down('initial' | 'major' | 'minor' | 'patch' | version);
 
@@ -63,20 +64,23 @@ const count = await m.uninstall();
 
 ## DB migrate implementation example
 
-See [example](./example/).
+See [deno script example](./example/). Can be run as, for example:
+```sh
+deno run example/db-migrate.ts --up --target=latest
+deno run example/db-migrate.ts --down --target=1.1.0
+deno run example/db-migrate.ts --uninstall
+```
 
-
-## Basic Progress Tracking (pseudo) Example
+## Basic progress tracking (pseudo) example
 
 ```js
-const db = [];
+const db = []; // simulate external store
 let sequence = 1;
 
 //
 const app = new Migrate();
 
-// creates wrapper which will do some work,
-// and also internally saves a progress step version
+// creates wrapper which will do some work, and save progress
 const work = async (thing: string) => {
     // "up" (do the work)
     const up = () => {
@@ -88,48 +92,47 @@ const work = async (thing: string) => {
         db.pop();
     };
 
-    // do the thing now
+    // do the work now
     await up();
 
-    // add the version into internal stack
+    // save progress: add the version into internal stack
     const ver = app.addVersion(`${sequence++}`, up, down);
 
     // mark current version as active
     await app.setActiveVersion(ver);
 };
 
-// first action marks the "initial" version (1.0.0)
-await work("hey"); // 1.0.0
-await work("ho"); // 2.0.0
+//
+await work("hey");  // 1.0.0 (this will become the "initial" version)
+await work("ho");   // 2.0.0
 await work("lets"); // 3.0.0
-await work("go"); // 4.0.0
+await work("go");   // 4.0.0
 
 // check if the work was done
 assertEquals(db, ["hey", "ho", "lets", "go"]);
 assertEquals(await app.getActiveVersion(), "4.0.0");
 
-// undo all steps in sequence (one step at a time)
-// the below could be written as: `await progress.down("initial");`
-let result: string | number = 0;
+// undo all steps (one step at a time)
+// this could be written as: `await progress.down("initial");`
+let result = 0;
 do {
     result = await app.down(); // one major step down
-    if (typeof result === "string") throw new Error(result);
 } while (result);
 
-// we must be at the initial state (v1) (note, that this does not completely remove)
+// we must be at the initial state (note, that this does not completely remove all artifacts)
 assertEquals(await app.getActiveVersion(), "1.0.0");
 assertEquals(db, ["hey"]);
 
-// now redo all steps in one call (internally still will do step-by-step)
+// now redo all steps (upgrade to "latest")
 await app.up("latest");
 assertEquals(db, ["hey", "ho", "lets", "go"]);
 
-// now go back to second version (step)
+// now go back to specific version
 await app.down("v2"); // "v2" is semver normalized to "2.0.0"
 assertEquals(await app.getActiveVersion(), "2.0.0");
 assertEquals(db, ["hey", "ho"]);
 
-// now try to go to some high version which does not exist
+// now try to upgrade to unknown version
 assertRejects(() => app.up("12.34.56"), "Unable to find");
 
 // we are still in the last version

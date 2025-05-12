@@ -49,10 +49,9 @@ Deno.test("progress tracking example", async () => {
 
 	// undo all steps in sequence (one step at a time)
 	// the below could be written as: `await progress.down("initial");`
-	let result: string | number = 0;
+	let result = 0;
 	do {
 		result = await app.down(); // one major step down
-		if (typeof result === "string") throw new Error(result);
 	} while (result);
 
 	// we must be at the initial state (v1)

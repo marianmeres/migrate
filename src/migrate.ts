@@ -110,10 +110,6 @@ export class Migrate {
 		unique: true,
 	});
 
-	/** Current version label. Semver normalized. Can be undefined, which would
-	 * be understood as an "uninstalled state" (no existing version available). */
-	// #version: string | undefined = undefined;
-
 	/** Migrate options. */
 	#options: Partial<MigrateOptions> = {};
 
@@ -146,16 +142,6 @@ export class Migrate {
 	get available(): string[] {
 		return this.#versions.items.map((v) => v.version);
 	}
-
-	// /** Find last available version. */
-	// get last(): Version | undefined {
-	// 	return this.#versions.at(-1);
-	// }
-
-	// /** Find first available version. */
-	// get first(): Version | undefined {
-	// 	return this.#versions.at(0);
-	// }
 
 	/** Access to internal sort fn, so it can be reused from the outside if needed. */
 	get compareFn(): (a: Version, b: Version) => number {
@@ -256,11 +242,6 @@ export class Migrate {
 	/**
 	 * Helper to search for the matching up version and related info.
 	 * Up is "greedy" and tries to go forward as much as possible (within constraints).
-	 *
-	 * Returns "to":
-	 * - found matching target
-	 * - self if matching target is legit, but not greater
-	 * - undefined if not found
 	 */
 	async __upMeta(
 		target: "latest" | "major" | "minor" | "patch" | string = "latest",

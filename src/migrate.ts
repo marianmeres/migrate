@@ -575,7 +575,7 @@ export class Migrate {
 
 	/** A special case downgrade, which will downgrade from the initial version
 	 * to a complete blank slate */
-	async uninstall() {
+	async uninstall(): Promise<number> {
 		this.#log(`--> Uninstalling ...`);
 		if ((await this.getActiveVersion()) === undefined) {
 			this.#log("Ignoring, as no active version was found");

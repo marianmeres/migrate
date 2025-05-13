@@ -5,7 +5,7 @@
 /**
  * Normalizes a version string to comply with semver format (MAJOR.MINOR.PATCH)
  */
-export function normalizeSemver(version: string, assert = true) {
+export function normalizeSemver(version: string, assert = true): string {
 	// Remove leading 'v' or 'V' if present
 	if (/^v/i.test(version)) {
 		version = version.substring(1);
@@ -60,7 +60,13 @@ export function normalizeSemver(version: string, assert = true) {
 /**
  * Parse semver components: major.minor.patch(-prerelease)(+build)
  */
-export function parseSemver(version: string) {
+export function parseSemver(version: string): {
+	major: number;
+	minor: number;
+	patch: number;
+	prerelease: string;
+	build: string;
+} {
 	version = normalizeSemver(version);
 	const match = version.match(
 		/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-.]+))?(?:\+([0-9A-Za-z-.]+))?$/
@@ -81,7 +87,7 @@ export function parseSemver(version: string) {
 /**
  * Compares semver strings (suitable for sorting).
  */
-export function compareSemver(a: string, b: string) {
+export function compareSemver(a: string, b: string): number {
 	const vA = parseSemver(a);
 	const vB = parseSemver(b);
 

@@ -18,7 +18,7 @@ async function ensure_version_table(client: any) {
 		create table if not exists __migrate__ (
 			id serial primary key,
 			version varchar(255) null,
-			applied_at timestamp with time zone not null default now()
+			created_at timestamp with time zone not null default now()
 		);    
 	`);
 }

@@ -11,8 +11,9 @@ Possible use cases may include:
 
 ## How does it work?
 
-Under the hood it is essentially a collection of `up` and `down` callback pairs labeled 
-with a semantic version string.
+Under the hood it is essentially an ordered collection of `up` and `down` callback pairs labeled 
+with a semantic version string (and every upgrade or downgrade is then a serial execution of
+the relevant `up`'s or `down`'s).
 
 ## Installation
 ```sh

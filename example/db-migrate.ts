@@ -53,11 +53,11 @@ export async function main() {
 /** Internal dir walker */
 async function add_versions(
 	migrate: Migrate,
-	dir = join(Deno.cwd(), "./example/migrations")
+	dir = dirname(import.meta.filename!)
 ) {
 	for (const dirEntry of walkSync(dir, {
 		maxDepth: 2,
-		match: [/migrate\.ts$/],
+		match: [/\/v?\d+\.\d+.\d+(-.+)?\/migrate\.ts$/],
 	})) {
 		const version = basename(dirname(dirEntry.path));
 		try {

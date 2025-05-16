@@ -6,7 +6,10 @@ import { Migrate, type MigrateOptions, Version } from "../src/migrate.ts";
 const clog = console.log;
 const noop = (_c: any) => Promise.resolve();
 
-function create_migrate(options: Partial<MigrateOptions> = {}) {
+function create_migrate(
+	options: Partial<MigrateOptions> = {},
+	versionsCount = 4
+) {
 	const log: any[] = ["clean"]; // just some marker
 
 	// simulate external version store
@@ -31,11 +34,11 @@ function create_migrate(options: Partial<MigrateOptions> = {}) {
 		...options,
 	});
 
-	// manually add (order must not matter - will be resorted)
-	migrate.addVersion("v4", createUp("d"), createDown());
-	migrate.addVersion("v2", createUp("b"), createDown());
-	migrate.addVersion("v1", createUp("a"), createDown());
-	migrate.addVersion("v3", createUp("c"), createDown());
+	//
+	const letters: string[] = "abcdefghijklmnopqrstuvwxyz".split("");
+	for (let i = Math.min(letters.length, versionsCount); i > 0; i--) {
+		migrate.addVersion(`v${i}`, createUp(letters.at(i - 1)!), createDown());
+	}
 
 	return {
 		migrate,
@@ -94,6 +97,21 @@ Deno.test("sanity check", async () => {
 
 	// set nonexisting must throw
 	assertRejects(() => m.setActiveVersion("7.8.9"));
+});
+
+Deno.test("single first version", async () => {
+	const { migrate: m, getLog } = create_migrate(
+		{
+			// logger: clog,
+		},
+		1
+	);
+
+	// we only have 1 version
+	assertEquals(m.versions.length, 1);
+	assertEquals(await m.getActiveVersion(), undefined);
+	assertEquals(await m.up("latest"), 1);
+	assertEquals(await m.getActiveVersion(), "1.0.0");
 });
 
 Deno.test("up/down meta", async () => {

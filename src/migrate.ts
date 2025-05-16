@@ -333,8 +333,9 @@ export class Migrate {
 	async up(
 		target: "latest" | "major" | "minor" | "patch" | string = "latest"
 	): Promise<number | string> {
+		const activeVersion = await this.getActiveVersion();
 		const { fromIndex, toIndex, fromVersion, toVersion, isInitial } =
-			(await this.__upMeta(target, await this.getActiveVersion())) ?? {};
+			(await this.__upMeta(target, activeVersion)) ?? {};
 
 		if (
 			fromIndex === undefined ||
@@ -351,16 +352,14 @@ export class Migrate {
 
 		job: {
 			// are we already up to date?
-			if (fromIndex >= toIndex) {
+			if (fromIndex >= toIndex && !isInitial) {
 				this.#log(
 					`Ignoring as already at or above the target ("${fromVersion}" >= "${toVersion}")`
 				);
 				break job;
 			}
 
-			this.#log(
-				`--> Plan: "${fromVersion}" (${fromIndex}) -> "${toVersion}" (${toIndex})`
-			);
+			this.#log(`--> Plan: "${activeVersion}" -> "${toVersion}"`);
 
 			// "from" is exclusive (unless not initial), "to" is inclusive
 			for (let i = fromIndex; i <= toIndex; i++) {
@@ -494,13 +493,13 @@ export class Migrate {
 	async down(
 		target: "initial" | "major" | "minor" | "patch" | string = "major"
 	): Promise<number> {
-		const currentVersion = await this.getActiveVersion();
-		if (!currentVersion) {
+		const activeVersion = await this.getActiveVersion();
+		if (!activeVersion) {
 			throw new Error("Cannot downgrade from undefined version");
 		}
 
 		const { fromIndex, toIndex, fromVersion, toVersion } =
-			(await this.__downMeta(target, currentVersion)) ?? {};
+			(await this.__downMeta(target, activeVersion)) ?? {};
 
 		if (
 			fromIndex === undefined ||
@@ -524,9 +523,7 @@ export class Migrate {
 				break job;
 			}
 
-			this.#log(
-				`--> Plan: "${fromVersion}" (${fromIndex}) -> "${toVersion}" (${toIndex})`
-			);
+			this.#log(`--> Plan: "${activeVersion}" -> "${toVersion}"`);
 
 			// "to" is exclusive
 			for (let i = fromIndex; i > toIndex; i--) {

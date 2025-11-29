@@ -1,5 +1,3 @@
-// deno-lint-ignore-file no-explicit-any
-
 import pg from "npm:pg";
 import dotenv from "npm:dotenv";
 
@@ -45,7 +43,7 @@ export async function getActiveVersion(context: any) {
 	try {
 		await ensure_version_table(client);
 		const { rows } = await client.query(
-			`select version from __migrate__ order by id desc limit 1`
+			`select version from __migrate__ order by id desc limit 1`,
 		);
 		return rows[0]?.version ?? undefined; // we want undefined, not null here
 	} catch (e) {

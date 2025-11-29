@@ -1,31 +1,35 @@
 # @marianmeres/migrate
 
-A general-purpose extensible versioning framework for managing incremental, bi-directional 
+A general-purpose extensible versioning framework for managing incremental, bi-directional
 changes.
 
-Possible use cases may include: 
-- db migrations, 
+Possible use cases may include:
+
+- db migrations,
 - undo/redo systems,
 - progress change tracking,
 - install/uninstall systems...
 
 ## How does it work?
 
-Under the hood it is essentially an ordered collection of `up` and `down` callback pairs labeled 
+Under the hood it is essentially an ordered collection of `up` and `down` callback pairs labeled
 with a semantic version string (and every upgrade or downgrade is then a serial execution of
 the relevant `up`'s or `down`'s).
 
 ## Installation
+
 ```sh
 deno add jsr:@marianmeres/migrate
 ```
+
 ```sh
 npm install @marianmeres/migrate
 ```
 
 ## Usage
+
 ```js
-import { Migrate } from '@marianmeres/migrate';
+import { Migrate } from "@marianmeres/migrate";
 ```
 
 ## Main API
@@ -60,12 +64,12 @@ const count = await m.down('initial' | 'major' | 'minor' | 'patch' | version);
 
 // special case downgrade, which will remove even the initial version
 const count = await m.uninstall();
-
 ```
 
 ## DB migrate implementation example
 
 See [deno script example](./example/). Can be run as, for example:
+
 ```sh
 deno run example/db-migrate.ts --up --target=latest
 deno run example/db-migrate.ts --down --target=1.1.0

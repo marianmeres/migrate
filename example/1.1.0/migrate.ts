@@ -1,5 +1,3 @@
-// deno-lint-ignore-file no-explicit-any
-
 export async function up(ctx: any) {
 	const client = await ctx.pool.connect();
 	try {

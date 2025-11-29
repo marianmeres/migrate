@@ -2,7 +2,7 @@ import { walkSync } from "@std/fs";
 import { basename, dirname, join } from "@std/path";
 import { parseArgs } from "@std/cli";
 import { Migrate } from "../src/mod.ts";
-import { getActiveVersion, setActiveVersion, pool } from "./_db.ts";
+import { getActiveVersion, pool, setActiveVersion } from "./_db.ts";
 
 const _dirname = basename(dirname(import.meta.filename!));
 const _basename = basename(import.meta.filename!);
@@ -23,7 +23,7 @@ export async function main() {
 			`\nUsage:
     deno run -A ${_dirname}/${_basename} [--up|--down] --target=target [--verbose]
     deno run -A ${_dirname}/${_basename} --uninstall [--verbose]
-`
+`,
 		);
 	}
 
@@ -34,7 +34,7 @@ export async function main() {
 			getActiveVersion,
 			logger: flags.verbose ? console.debug : undefined,
 		},
-		{ pool } // context
+		{ pool }, // context
 	);
 
 	await add_versions(migrate);
@@ -53,12 +53,14 @@ export async function main() {
 /** Internal dir walker */
 async function add_versions(
 	migrate: Migrate,
-	dir = dirname(import.meta.filename!)
+	dir = dirname(import.meta.filename!),
 ) {
-	for (const dirEntry of walkSync(dir, {
-		maxDepth: 2,
-		match: [/\/v?\d+\.\d+.\d+(-.+)?\/migrate\.ts$/],
-	})) {
+	for (
+		const dirEntry of walkSync(dir, {
+			maxDepth: 2,
+			match: [/\/v?\d+\.\d+.\d+(-.+)?\/migrate\.ts$/],
+		})
+	) {
 		const version = basename(dirname(dirEntry.path));
 		try {
 			const { up, down } = await import(dirEntry.path);
@@ -66,7 +68,7 @@ async function add_versions(
 			if (typeof up !== "function" || typeof down !== "function") {
 				throw new Error(
 					`Invalid version module for ${version} ` +
-						`(must export both "up" and "down" as functions)`
+						`(must export both "up" and "down" as functions)`,
 				);
 			}
 

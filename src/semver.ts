@@ -3,7 +3,15 @@
  */
 
 /**
- * Normalizes a version string to comply with semver format (MAJOR.MINOR.PATCH)
+ * Normalizes a version string to comply with semver format (MAJOR.MINOR.PATCH).
+ * @param version - The version string to normalize (can include or omit 'v' prefix).
+ * @param assert - If true, throws an error for invalid version strings.
+ * @returns The normalized semver string.
+ * @throws {TypeError} If assert is true and the version string is invalid.
+ * @example
+ * normalizeSemver("v1.2") // Returns "1.2.0"
+ * normalizeSemver("7") // Returns "7.0.0"
+ * normalizeSemver("1.2.3-rc.1+build.123") // Returns "1.2.3-rc.1+build.123"
  */
 export function normalizeSemver(version: string, assert = true): string {
 	// Remove leading 'v' or 'V' if present
@@ -11,14 +19,14 @@ export function normalizeSemver(version: string, assert = true): string {
 		version = version.substring(1);
 	}
 
-	// First, handle the case where there's a prerelease or build info without dots
+	// First, handle the case where there's prerelease or build info without dots
 	// Example: "7-rc.1" should be treated as "7.0.0-rc.1"
 	const fullMatch = version.match(
-		/^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-(.+?))?(?:\+(.+))?$/
+		/^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-(.+?))?(?:\+(.+))?$/,
 	);
 
 	if (fullMatch) {
-		// We have a version that might be missing minor/patch but has correct format
+		// We have a version that might be missing minor/patch but has the correct format
 		const major = fullMatch[1] || "0";
 		const minor = fullMatch[2] || "0";
 		const patch = fullMatch[3] || "0";
@@ -28,8 +36,8 @@ export function normalizeSemver(version: string, assert = true): string {
 		return `${major}.${minor}.${patch}${prerelease}${build}`;
 	}
 
-	// Handle the case where hyphen might be used incorrectly
-	// Example: "7-rc.1" (where hyphen is used instead of dots for version parts)
+	// Handle the case where a hyphen might be used incorrectly
+	// Example: "7-rc.1" (where a hyphen is used instead of dots for version parts)
 	const alternateMatch = version.match(/^(\d+)(?:-(.+))?$/);
 	if (alternateMatch) {
 		const major = alternateMatch[1];
@@ -48,17 +56,20 @@ export function normalizeSemver(version: string, assert = true): string {
 		return `${major}.0.0${prerelease}${build}`;
 	}
 
-	// Maybe assert valid format
+	// Assert valid format if requested
 	if (assert) {
 		throw new TypeError(`Invalid version "${version}"`);
 	}
 
-	// Otherwise return a minimal valid version
+	// Otherwise, return a minimal valid version
 	return "0.0.0";
 }
 
 /**
- * Parse semver components: major.minor.patch(-prerelease)(+build)
+ * Parses a semver string into its component parts.
+ * @param version - The version string to parse (will be normalized first).
+ * @returns An object containing the parsed major, minor, patch, prerelease, and build components.
+ * @throws {Error} If the version string is invalid after normalization.
  */
 export function parseSemver(version: string): {
 	major: number;
@@ -69,7 +80,7 @@ export function parseSemver(version: string): {
 } {
 	version = normalizeSemver(version);
 	const match = version.match(
-		/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-.]+))?(?:\+([0-9A-Za-z-.]+))?$/
+		/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-.]+))?(?:\+([0-9A-Za-z-.]+))?$/,
 	);
 	if (!match) {
 		throw new Error(`Invalid semver ${version}`);
@@ -80,12 +91,19 @@ export function parseSemver(version: string): {
 		minor: parseInt(match[2], 10),
 		patch: parseInt(match[3], 10),
 		prerelease: match[4] || "",
-		build: match[5] || "", // Build metadata should be ignored when determining version precedence
+		build: match[5] || "", // Note: Build metadata should be ignored when determining version precedence
 	};
 }
 
 /**
- * Compares semver strings (suitable for sorting).
+ * Compares two semver strings according to semver precedence rules.
+ * @param a - The first version string to compare.
+ * @param b - The second version string to compare.
+ * @returns A negative number if a < b, positive if a > b, or 0 if equal.
+ * @example
+ * compareSemver("1.0.0", "2.0.0") // Returns negative (1.0.0 < 2.0.0)
+ * compareSemver("2.0.0", "1.0.0") // Returns positive (2.0.0 > 1.0.0)
+ * compareSemver("1.0.0-alpha", "1.0.0") // Returns negative (prerelease < release)
  */
 export function compareSemver(a: string, b: string): number {
 	const vA = parseSemver(a);
@@ -122,8 +140,7 @@ export function compareSemver(a: string, b: string): number {
 			if (aIsNum && bIsNum) {
 				const diff = parseInt(aParts[i], 10) - parseInt(bParts[i], 10);
 				if (diff !== 0) return diff;
-			}
-			// Non-numeric identifiers are compared lexically (ASCII)
+			} // Non-numeric identifiers are compared lexically (ASCII)
 			else if (aParts[i] !== bParts[i]) {
 				return aParts[i] < bParts[i] ? -1 : 1;
 			}

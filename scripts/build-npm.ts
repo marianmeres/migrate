@@ -1,6 +1,4 @@
-// deno-lint-ignore-file no-explicit-any
-
-import { ensureDir, emptyDir, copySync, walkSync } from "@std/fs";
+import { copySync, emptyDir, ensureDir, walkSync } from "@std/fs";
 import { join } from "@std/path";
 import denoJson from "../deno.json" with { type: "json" };
 
@@ -12,7 +10,15 @@ const TS_TO_JS_REGEX =
 	/from\s+(['"])([^'"]+)\.ts(['"]);?|import\s*\(\s*(['"])([^'"]+)\.ts(['"]),?\s*\)/g;
 
 // prettier-ignore
-function replaceWithJs(_match: any, q1: any, path1: any, q3: any, q4: any, path2: any, q6: any) {
+function replaceWithJs(
+	_match: any,
+	q1: any,
+	path1: any,
+	q3: any,
+	q4: any,
+	path2: any,
+	q6: any,
+) {
 	if (path1) {
 		// Static import: from "path.ts"
 		return `from ${q1}${path1}.js${q3}`;
@@ -24,10 +30,10 @@ function replaceWithJs(_match: any, q1: any, path1: any, q3: any, q4: any, path2
 
 const srcDir = join(import.meta.dirname!, "../src");
 const outDir = join(import.meta.dirname!, "../.npm-dist");
-const outDirSrc = join(outDir, '/src');
-const outDirDist = join(outDir, '/dist');
+const outDirSrc = join(outDir, "/src");
+const outDirDist = join(outDir, "/dist");
 
-console.log({srcDir, outDir, outDirSrc, outDirDist});
+console.log({ srcDir, outDir, outDirSrc, outDirDist });
 
 await ensureDir(outDir);
 await emptyDir(outDir);
@@ -48,12 +54,12 @@ const tsconfigJson = {
 		skipLibCheck: true,
 		rootDir: "src",
 		outDir: "dist",
-		moduleResolution: 'bundler',
+		moduleResolution: "bundler",
 	},
 };
 Deno.writeTextFileSync(
 	join(outDir, "tsconfig.json"),
-	JSON.stringify(tsconfigJson, null, "\t")
+	JSON.stringify(tsconfigJson, null, "\t"),
 );
 
 // WTF hackery: Option 'allowImportingTsExtensions' can only be used when...
@@ -83,11 +89,11 @@ const packageJson = {
 	},
 	dependencies: {
 		"@marianmeres/item-collection": "^1",
-	}
+	},
 };
 Deno.writeTextFileSync(
 	join(outDir, "package.json"),
-	JSON.stringify(packageJson, null, "\t")
+	JSON.stringify(packageJson, null, "\t"),
 );
 
 Deno.chdir(outDir);
@@ -95,8 +101,8 @@ Deno.chdir(outDir);
 ([
 	["npm", { args: ["install"] }],
 	["tsc", { args: ["-p", "tsconfig.json"] }],
-] as [string, { args: string[]}][]).forEach(([cmd, opts]) => {
-	console.log('--> Executing:', cmd, opts);
+] as [string, { args: string[] }][]).forEach(([cmd, opts]) => {
+	console.log("--> Executing:", cmd, opts);
 	const command = new Deno.Command(cmd, opts);
 	let { code, stdout, stderr } = command.outputSync();
 	stdout = new TextDecoder().decode(stdout) as any;
@@ -104,11 +110,9 @@ Deno.chdir(outDir);
 	if (code) throw new Error(new TextDecoder().decode(stderr));
 });
 
-
 // cleanup
-['tsconfig.json'].forEach((f) => {
-	Deno.removeSync(join(outDir, f))
+["tsconfig.json"].forEach((f) => {
+	Deno.removeSync(join(outDir, f));
 });
 
 Deno.removeSync(outDirSrc, { recursive: true });
-

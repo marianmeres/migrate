@@ -1,5 +1,3 @@
-// deno-lint-ignore-file no-explicit-any
-
 import { assertRejects } from "@std/assert";
 import { assertEquals } from "@std/assert/equals";
 import { Migrate, Version } from "../src/mod.ts";

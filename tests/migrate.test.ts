@@ -1,5 +1,3 @@
-// deno-lint-ignore-file no-explicit-any
-
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { Migrate, type MigrateOptions, Version } from "../src/migrate.ts";
 
@@ -8,7 +6,7 @@ const noop = (_c: any) => Promise.resolve();
 
 function create_migrate(
 	options: Partial<MigrateOptions> = {},
-	versionsCount = 4
+	versionsCount = 4,
 ) {
 	const log: any[] = ["clean"]; // just some marker
 
@@ -29,8 +27,7 @@ function create_migrate(
 
 	const migrate = new Migrate({
 		getActiveVersion: () => Promise.resolve(version),
-		setActiveVersion: (v: string | undefined, _ctx) =>
-			Promise.resolve((version = v)),
+		setActiveVersion: (v: string | undefined, _ctx) => Promise.resolve(version = v),
 		...options,
 	});
 
@@ -63,9 +60,7 @@ Deno.test("version is semver normalized", () => {
 
 Deno.test("sanity check", async () => {
 	const m = new Migrate();
-	["v4", "v1", "v2", "3.5", "v3.5.0-foo"].forEach((v) =>
-		m.addVersion(v, noop, noop)
-	);
+	["v4", "v1", "v2", "3.5", "v3.5.0-foo"].forEach((v) => m.addVersion(v, noop, noop));
 
 	assertEquals(m.available, ["1.0.0", "2.0.0", "3.5.0-foo", "3.5.0", "4.0.0"]);
 
@@ -88,7 +83,7 @@ Deno.test("sanity check", async () => {
 			.search("3.", "prefix")
 			.toSorted(m.compareFn)
 			.map((i) => i.version),
-		["3.5.0-foo", "3.5.0"]
+		["3.5.0-foo", "3.5.0"],
 	);
 
 	//
@@ -104,7 +99,7 @@ Deno.test("single first version", async () => {
 		{
 			// logger: clog,
 		},
-		1
+		1,
 	);
 
 	// we only have 1 version
@@ -121,9 +116,15 @@ Deno.test("up/down meta", async () => {
 
 	// prettier-ignore
 	[
-		"1.0.1", "1.0.2", "1.1.0", "1.2.0", "1.2.1", "1.2.2",
+		"1.0.1",
+		"1.0.2",
+		"1.1.0",
+		"1.2.0",
+		"1.2.1",
+		"1.2.2",
 		// intentionally create gap of missing 5x and 6x
-		"7.8.9", "10.11.12"
+		"7.8.9",
+		"10.11.12",
 	].forEach((v) => {
 		m.addVersion(v, noop, noop);
 	});

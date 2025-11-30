@@ -1,5 +1,8 @@
 # @marianmeres/migrate
 
+[![NPM version](https://img.shields.io/npm/v/@marianmeres/migrate.svg)](https://www.npmjs.com/package/@marianmeres/migrate)
+[![JSR version](https://jsr.io/badges/@marianmeres/migrate)](https://jsr.io/@marianmeres/migrate)
+
 A general-purpose extensible versioning framework for managing incremental, bi-directional
 changes.
 
@@ -149,3 +152,10 @@ await app.uninstall();
 assertEquals(await app.getActiveVersion(), undefined);
 assertEquals(db, []);
 ```
+
+## Package Identity
+
+- **Name:** @marianmeres/migrate
+- **Author:** Marian Meres
+- **Repository:** https://github.com/marianmeres/migrate
+- **License:** MIT

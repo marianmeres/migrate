@@ -1,5 +1,21 @@
 /**
- * MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]
+ * @module
+ * Semver utilities for parsing, normalizing, and comparing version strings.
+ *
+ * Version format: MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]
+ *
+ * @example
+ * ```typescript
+ * import { normalizeSemver, parseSemver, compareSemver } from "@marianmeres/migrate";
+ *
+ * normalizeSemver("v1.2");     // Returns "1.2.0"
+ * normalizeSemver("7-rc.1");   // Returns "7.0.0-rc.1"
+ *
+ * parseSemver("1.2.3-alpha+build");
+ * // Returns { major: 1, minor: 2, patch: 3, prerelease: "alpha", build: "build" }
+ *
+ * compareSemver("1.0.0", "2.0.0"); // Returns negative number
+ * ```
  */
 
 /**

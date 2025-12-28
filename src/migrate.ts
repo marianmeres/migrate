@@ -1,3 +1,10 @@
+/**
+ * @module
+ * Core migration classes for managing versioned changes.
+ *
+ * Provides the {@linkcode Migrate} class for orchestrating migrations and
+ * the {@linkcode Version} class for representing individual versions.
+ */
 import { ItemCollection } from "@marianmeres/item-collection";
 import { parseSemver } from "./mod.ts";
 import { compareSemver, normalizeSemver } from "./semver.ts";
@@ -19,7 +26,12 @@ export interface MigrateOptions {
 	logger?: (...args: unknown[]) => void;
 }
 
-type MigrateFn = (context?: Record<string, unknown>) => void | Promise<void>;
+/**
+ * The migration function type used for up and down operations.
+ * @param context - Optional context object passed to the migration function.
+ * @returns void or a Promise that resolves to void.
+ */
+export type MigrateFn = (context?: Record<string, unknown>) => void | Promise<void>;
 
 /** Single version abstraction */
 export class Version {
@@ -397,7 +409,7 @@ export class Migrate {
 	 */
 	async up(
 		target: "latest" | "major" | "minor" | "patch" | string = "latest",
-	): Promise<number | string> {
+	): Promise<number> {
 		const activeVersion = await this.getActiveVersion();
 		const { fromIndex, toIndex, fromVersion, toVersion, isInitial } =
 			(await this.__upMeta(target, activeVersion)) ?? {};

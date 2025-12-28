@@ -2,6 +2,7 @@
 
 [![NPM version](https://img.shields.io/npm/v/@marianmeres/migrate.svg)](https://www.npmjs.com/package/@marianmeres/migrate)
 [![JSR version](https://jsr.io/badges/@marianmeres/migrate)](https://jsr.io/@marianmeres/migrate)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 A general-purpose extensible versioning framework for managing incremental, bi-directional
 changes.
@@ -38,36 +39,24 @@ import { Migrate } from "@marianmeres/migrate";
 ## Main API
 
 ```typescript
-// create instance
-const m = new Migrate(
-    options: {
-        // provide current version's setter/getter (typically stored in a db)
-        // if not provided, will keep the system version only in memory
-        getActiveVersion: (context) => Promise<string | undefined>;
-        setActiveVersion: (version, context) => Promise<string | undefined>;
-    } = {}, 
-    // arbitrary context which will be passed to each up/down step
-    context, 
-);
+const m = new Migrate(options?, context?);
 
 // add available versions with migration functions
-m.addVersion('1.2.3', upFn, downFn);
-m.addVersion('4.5.6', upFn, downFn);
+m.addVersion('1.2.3', upFn, downFn, optionalComment);
 
-// set/get the system's current version (which is initially undefined)
-await m.setCurrentVersion('7.8.9');
-const current = await m.getCurrentVersion();
+// get/set the system's current version (initially undefined)
+await m.setActiveVersion('7.8.9');
+const current = await m.getActiveVersion();
 
-// Migrate up or down from current to defined target.
-// Will be a no-op if there's no available up/down match.
-// Will throw if target does not exist.
-// Returns the number of applied migration steps.
-const count = await m.up('latest' | 'major' | 'minor' | 'patch' | version);
-const count = await m.down('initial' | 'major' | 'minor' | 'patch' | version);
+// migrate up or down (returns number of applied steps)
+await m.up('latest' | 'major' | 'minor' | 'patch' | version);
+await m.down('initial' | 'major' | 'minor' | 'patch' | version);
 
-// special case downgrade, which will remove even the initial version
-const count = await m.uninstall();
+// complete removal (downgrades past initial version)
+await m.uninstall();
 ```
+
+For complete API reference including all methods, types, and semver utilities, see [API.md](./API.md).
 
 ## DB migrate implementation example
 

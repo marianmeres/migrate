@@ -1,1 +1,3 @@
-A general-purpose extensible versioning framework for managing incremental, bi-directional changes (migrations, undo/redo, progress tracking). Each version has up() and down() functions with greedy-up and conservative-down semantics.
+A general-purpose extensible versioning framework for managing incremental, bi-directional 
+changes (migrations, undo/redo, progress tracking). Each version has up() and down() functions 
+with greedy-up and conservative-down semantics.

@@ -19,73 +19,68 @@
  */
 
 /**
+ * Matches a semver-ish version string. MINOR and PATCH are optional and will
+ * default to 0 on normalization. PRERELEASE and BUILD identifiers are
+ * restricted to the semver-spec character set `[0-9A-Za-z-.]+`.
+ */
+const SEMVER_RE =
+	/^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z-.]+))?(?:\+([0-9A-Za-z-.]+))?$/;
+
+/**
  * Normalizes a version string to comply with semver format (MAJOR.MINOR.PATCH).
+ * Prerelease and build identifiers must only contain `[0-9A-Za-z-.]` characters
+ * as per the semver spec.
  * @param version - The version string to normalize (can include or omit 'v' prefix).
- * @param assert - If true, throws an error for invalid version strings.
- * @returns The normalized semver string.
+ * @param assert - If true (default), throws a TypeError for invalid version
+ * strings. If false, returns `undefined` for invalid input.
+ * @returns The normalized semver string, or `undefined` when `assert` is false
+ * and the input is invalid.
  * @throws {TypeError} If assert is true and the version string is invalid.
  * @example
  * normalizeSemver("v1.2") // Returns "1.2.0"
  * normalizeSemver("7") // Returns "7.0.0"
  * normalizeSemver("1.2.3-rc.1+build.123") // Returns "1.2.3-rc.1+build.123"
+ * normalizeSemver("nope", false) // Returns undefined
  */
-export function normalizeSemver(version: string, assert = true): string {
+export function normalizeSemver(version: string, assert?: true): string;
+export function normalizeSemver(
+	version: string,
+	assert: false,
+): string | undefined;
+export function normalizeSemver(
+	version: string,
+	assert: boolean = true,
+): string | undefined {
+	if (typeof version !== "string") {
+		if (assert) throw new TypeError(`Invalid version "${version}"`);
+		return undefined;
+	}
+
 	// Remove leading 'v' or 'V' if present
 	if (/^v/i.test(version)) {
 		version = version.substring(1);
 	}
 
-	// First, handle the case where there's prerelease or build info without dots
-	// Example: "7-rc.1" should be treated as "7.0.0-rc.1"
-	const fullMatch = version.match(
-		/^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-(.+?))?(?:\+(.+))?$/,
-	);
-
-	if (fullMatch) {
-		// We have a version that might be missing minor/patch but has the correct format
-		const major = fullMatch[1] || "0";
-		const minor = fullMatch[2] || "0";
-		const patch = fullMatch[3] || "0";
-		const prerelease = fullMatch[4] ? `-${fullMatch[4]}` : "";
-		const build = fullMatch[5] ? `+${fullMatch[5]}` : "";
-
-		return `${major}.${minor}.${patch}${prerelease}${build}`;
+	const match = version.match(SEMVER_RE);
+	if (!match) {
+		if (assert) throw new TypeError(`Invalid version "${version}"`);
+		return undefined;
 	}
 
-	// Handle the case where a hyphen might be used incorrectly
-	// Example: "7-rc.1" (where a hyphen is used instead of dots for version parts)
-	const alternateMatch = version.match(/^(\d+)(?:-(.+))?$/);
-	if (alternateMatch) {
-		const major = alternateMatch[1];
-		let prerelease = "";
-		let build = "";
+	const major = match[1] || "0";
+	const minor = match[2] || "0";
+	const patch = match[3] || "0";
+	const prerelease = match[4] ? `-${match[4]}` : "";
+	const build = match[5] ? `+${match[5]}` : "";
 
-		if (alternateMatch[2]) {
-			// Check if there's a build part in the second segment
-			const buildSplit = alternateMatch[2].split("+");
-			prerelease = `-${buildSplit[0]}`;
-			if (buildSplit.length > 1) {
-				build = `+${buildSplit[1]}`;
-			}
-		}
-
-		return `${major}.0.0${prerelease}${build}`;
-	}
-
-	// Assert valid format if requested
-	if (assert) {
-		throw new TypeError(`Invalid version "${version}"`);
-	}
-
-	// Otherwise, return a minimal valid version
-	return "0.0.0";
+	return `${major}.${minor}.${patch}${prerelease}${build}`;
 }
 
 /**
  * Parses a semver string into its component parts.
  * @param version - The version string to parse (will be normalized first).
  * @returns An object containing the parsed major, minor, patch, prerelease, and build components.
- * @throws {Error} If the version string is invalid after normalization.
+ * @throws {TypeError} If the version string is invalid.
  */
 export function parseSemver(version: string): {
 	major: number;
@@ -94,20 +89,16 @@ export function parseSemver(version: string): {
 	prerelease: string;
 	build: string;
 } {
-	version = normalizeSemver(version);
-	const match = version.match(
-		/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-.]+))?(?:\+([0-9A-Za-z-.]+))?$/,
-	);
-	if (!match) {
-		throw new Error(`Invalid semver ${version}`);
-	}
+	const normalized = normalizeSemver(version);
+	const match = normalized.match(SEMVER_RE)!;
 
 	return {
 		major: parseInt(match[1], 10),
-		minor: parseInt(match[2], 10),
-		patch: parseInt(match[3], 10),
+		minor: parseInt(match[2] || "0", 10),
+		patch: parseInt(match[3] || "0", 10),
 		prerelease: match[4] || "",
-		build: match[5] || "", // Note: Build metadata should be ignored when determining version precedence
+		// Note: build metadata is ignored when determining version precedence
+		build: match[5] || "",
 	};
 }
 

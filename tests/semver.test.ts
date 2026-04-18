@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertThrows } from "@std/assert";
 import { compareSemver, normalizeSemver, parseSemver } from "../src/semver.ts";
 
 function shuffle(array: any[]): any[] {
@@ -27,6 +27,20 @@ Deno.test("semver normalize", () => {
 	Object.entries(toBeNormalizedVersions).forEach(([version, normalized]) => {
 		assertEquals(normalizeSemver(version), normalized);
 	});
+});
+
+Deno.test("semver normalize rejects non-semver characters", () => {
+	// prerelease/build must be in [0-9A-Za-z-.]
+	assertThrows(() => normalizeSemver("1.0.0-foo_bar"), TypeError);
+	assertThrows(() => normalizeSemver("1.0.0+build bar"), TypeError);
+	assertThrows(() => normalizeSemver("banana"), TypeError);
+
+	// assert=false returns undefined (not "0.0.0") for invalid input
+	assertEquals(normalizeSemver("banana", false), undefined);
+	assertEquals(normalizeSemver("1.0.0-foo_bar", false), undefined);
+
+	// valid inputs pass through unchanged
+	assertEquals(normalizeSemver("1.0.0-foo", false), "1.0.0-foo");
 });
 
 Deno.test("semver parse", () => {

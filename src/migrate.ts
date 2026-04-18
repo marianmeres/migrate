@@ -9,19 +9,20 @@ import { ItemCollection } from "@marianmeres/item-collection";
 import { parseSemver } from "./mod.ts";
 import { compareSemver, normalizeSemver } from "./semver.ts";
 
-const clog = console.log;
-
 /** The constructor options for the Migrate class. */
 export interface MigrateOptions {
 	/** Active version getter (e.g., reader from database). If not provided, will read from memory. */
 	getActiveVersion: (
 		context: Record<string, unknown>,
 	) => Promise<string | undefined>;
-	/** Active version setter (e.g., writer to database). If not provided, will keep in memory. */
+	/**
+	 * Active version setter (e.g., writer to database). If not provided, will keep in memory.
+	 * The returned value (if any) is ignored by the framework.
+	 */
 	setActiveVersion: (
 		version: string | undefined,
 		context: Record<string, unknown>,
-	) => Promise<string | undefined>;
+	) => Promise<unknown>;
 	/** Optional logger for debugging purposes. */
 	logger?: (...args: unknown[]) => void;
 }
@@ -33,7 +34,7 @@ export interface MigrateOptions {
  */
 export type MigrateFn = (context?: Record<string, unknown>) => void | Promise<void>;
 
-/** Single version abstraction */
+/** Single version abstraction. */
 export class Version {
 	/** The semver normalized version form. */
 	public readonly version: string;
@@ -50,24 +51,33 @@ export class Version {
 
 	#up: MigrateFn;
 
-	#down: MigrateFn;
+	/**
+	 * Stored `down` worker. `null` means this version is one-way (irreversible).
+	 */
+	#down: MigrateFn | null;
+
+	#logger?: (...args: unknown[]) => void;
 
 	/**
 	 * Creates a new Version instance.
 	 * @param version - The version string (will be normalized to semver format).
 	 * @param up - The upgrade function to execute when migrating up to this version.
 	 * @param down - The downgrade function to execute when migrating down from this version.
+	 * Pass `null` or `undefined` to mark this version as irreversible (one-way).
 	 * @param comment - Optional comment or description for this version.
 	 * @param logger - Optional logger function.
 	 */
 	constructor(
 		version: string,
 		up: MigrateFn,
-		down: MigrateFn,
+		down?: MigrateFn | null,
 		public readonly comment: string | undefined = undefined,
-		public logger?: (...args: any[]) => void,
+		logger?: (...args: unknown[]) => void,
 	) {
-		if (!version || typeof up !== "function" || typeof down !== "function") {
+		if (!version || typeof up !== "function") {
+			throw new TypeError("Invalid version parameters");
+		}
+		if (down !== undefined && down !== null && typeof down !== "function") {
 			throw new TypeError("Invalid version parameters");
 		}
 
@@ -86,7 +96,13 @@ export class Version {
 
 		// Actual migrate workers
 		this.#up = up;
-		this.#down = down;
+		this.#down = down ?? null;
+		this.#logger = logger;
+	}
+
+	/** Whether this version has a downgrade function (is reversible). */
+	get isReversible(): boolean {
+		return this.#down !== null;
 	}
 
 	/**
@@ -95,7 +111,7 @@ export class Version {
 	 * @returns The result of the upgrade function.
 	 */
 	up(context: Parameters<MigrateFn>[0]): ReturnType<MigrateFn> {
-		this.logger?.(`[${this.version}] up worker ...`);
+		this.#logger?.(`[${this.version}] up worker ...`);
 		return this.#up(context);
 	}
 
@@ -103,9 +119,15 @@ export class Version {
 	 * Executes the downgrade migration function for this version.
 	 * @param context - The context object to pass to the migration function.
 	 * @returns The result of the downgrade function.
+	 * @throws {Error} If this version was registered without a downgrade function.
 	 */
 	down(context: Parameters<MigrateFn>[0]): ReturnType<MigrateFn> {
-		this.logger?.(`[${this.version}] down worker ...`);
+		if (this.#down === null) {
+			throw new Error(
+				`Version "${this.version}" is irreversible (no down worker registered)`,
+			);
+		}
+		this.#logger?.(`[${this.version}] down worker ...`);
 		return this.#down(context);
 	}
 
@@ -116,6 +138,30 @@ export class Version {
 	toString(): string {
 		return this.version;
 	}
+}
+
+/** Plan step returned by {@link Migrate.plan}. */
+export interface PlanStep {
+	/** The version on which the worker is invoked. */
+	version: string;
+	/** The version that will become active after this step succeeds. */
+	activeAfter: string | undefined;
+}
+
+/** Plan returned by {@link Migrate.plan}. */
+export interface Plan {
+	direction: "up" | "down";
+	fromVersion: string | undefined;
+	toVersion: string | undefined;
+	steps: PlanStep[];
+}
+
+/** Status snapshot returned by {@link Migrate.status}. */
+export interface Status {
+	active: string | undefined;
+	latest: string | undefined;
+	isAtLatest: boolean;
+	pending: string[];
 }
 
 /**
@@ -145,6 +191,12 @@ export class Migrate {
 	#options: Partial<MigrateOptions> = {};
 
 	/**
+	 * Tail of the serialization queue. All up/down/uninstall operations chain
+	 * off this promise so they run one at a time per instance.
+	 */
+	#queue: Promise<unknown> = Promise.resolve();
+
+	/**
 	 * Creates a new Migrate instance.
 	 * @param options - Configuration options for version storage and logging.
 	 * @param context - Arbitrary context object passed to each migration function.
@@ -162,6 +214,41 @@ export class Migrate {
 		args = [`[${new Date().toISOString()}] [migrate]`, ...args];
 		this.#options?.logger?.(...args);
 		return args[1];
+	}
+
+	/**
+	 * Serializes async operations so that concurrent calls to {@link up},
+	 * {@link down}, or {@link uninstall} run one at a time per instance.
+	 */
+	#serialize<T>(fn: () => Promise<T>): Promise<T> {
+		const result = this.#queue.then(fn, fn);
+		this.#queue = result.then(
+			() => undefined,
+			() => undefined,
+		);
+		return result;
+	}
+
+	/**
+	 * Syncs the internal collection's active item with an externally-sourced
+	 * version label. No-op when internal state already matches.
+	 */
+	#syncActive(version: string | undefined): void {
+		const current = this.#versions.active?.version;
+		if (version === current) return;
+
+		if (version === undefined) {
+			this.#versions.unsetActive();
+			return;
+		}
+
+		const match = this.#versions.findById(version);
+		if (match) {
+			this.#versions.setActive(match);
+		} else {
+			// Unknown version - leave internal state unset rather than invent one.
+			this.#versions.unsetActive();
+		}
 	}
 
 	/**
@@ -200,7 +287,10 @@ export class Migrate {
 	 * Adds a new version to the migration registry.
 	 * @param version - The version string (will be normalized to semver format).
 	 * @param up - The upgrade function to execute when migrating up to this version.
-	 * @param down - The downgrade function to execute when migrating down from this version.
+	 * @param down - The downgrade function to execute when migrating down from
+	 * this version. Pass `null` or `undefined` to mark the version as
+	 * irreversible (one-way); in that case {@link down} and {@link uninstall}
+	 * will fail when they reach this version.
 	 * @param comment - Optional comment or description for this version.
 	 * @returns The created Version instance.
 	 * @throws {Error} If the version already exists.
@@ -208,10 +298,9 @@ export class Migrate {
 	addVersion(
 		version: string,
 		up: MigrateFn,
-		down: MigrateFn,
+		down?: MigrateFn | null,
 		comment: string | undefined = undefined,
 	): Version {
-		//
 		const _version = new Version(
 			version,
 			up,
@@ -232,17 +321,23 @@ export class Migrate {
 
 	/**
 	 * Gets the currently active version.
+	 *
+	 * When an external `getActiveVersion` option is configured, it is the
+	 * source of truth and the internal collection's active item is synced to
+	 * its result on every call.
+	 *
 	 * @returns The active version string, or undefined if not set.
 	 */
 	async getActiveVersion(): Promise<string | undefined> {
 		// Maybe read from external system
 		if (typeof this.#options.getActiveVersion === "function") {
-			let version = await this.#options?.getActiveVersion?.(this.context);
+			let version = await this.#options.getActiveVersion(this.context);
 			if (version) version = normalizeSemver(version);
-			return version ?? undefined; // Explicit undefined rather than null
-		} else {
-			return this.#versions.active?.version;
+			const normalized = version || undefined;
+			this.#syncActive(normalized);
+			return normalized;
 		}
+		return this.#versions.active?.version;
 	}
 
 	/**
@@ -272,13 +367,13 @@ export class Migrate {
 			}
 
 			// Provided version must exist
-			let active;
-			if (!_version || !(active = this.#versions.findById(_version))) {
+			const active = _version ? this.#versions.findById(_version) : undefined;
+			if (!_version || !active) {
 				throw new Error(`Version not found ("${version}")`);
 			}
 
 			// Sync to instance
-			active ? this.#versions.setActive(active) : this.#versions.unsetActive();
+			this.#versions.setActive(active);
 		}
 
 		const active = this.#versions.active?.version;
@@ -288,6 +383,29 @@ export class Migrate {
 		this.#log("setActiveVersion:", active);
 
 		return active;
+	}
+
+	/**
+	 * Forces the active version marker without validating that the version
+	 * exists in the registered set. Useful for recovering from a partial
+	 * failure where a migration succeeded but the version marker was not
+	 * persisted (or was persisted to an unexpected value).
+	 *
+	 * The internal active item is cleared if the provided version is unknown;
+	 * the external setter (if configured) is still called with the supplied
+	 * value verbatim.
+	 *
+	 * @param version - Semver string, or undefined to clear the marker.
+	 * @returns The resolved (normalized) version written, or undefined.
+	 */
+	async forceSetActiveVersion(
+		version: string | undefined,
+	): Promise<string | undefined> {
+		const normalized = version === undefined ? undefined : normalizeSemver(version);
+		this.#syncActive(normalized);
+		await this.#options.setActiveVersion?.(normalized, this.context);
+		this.#log("forceSetActiveVersion:", normalized);
+		return normalized;
 	}
 
 	/**
@@ -358,9 +476,14 @@ export class Migrate {
 			toVersion = this.#versions.at(-1)!.version;
 		} //
 		else if (target === "major") {
-			// Find the next major version in two steps
+			// Find the next major (first version strictly greater with a larger
+			// major segment), then the highest version within that major.
 			const nextMajor = this.#versions.items
-				.filter((v) => v.major > from.major)
+				.filter(
+					(v) =>
+						v.major > from.major &&
+						compareSemver(v.version, from.version) > 0,
+				)
 				.at(0);
 
 			if (nextMajor) {
@@ -373,7 +496,11 @@ export class Migrate {
 		} //
 		else if (target === "minor") {
 			toVersion = this.#versions.items
-				.filter((v) => v.major === from.major && v.minor > from.minor)
+				.filter(
+					(v) =>
+						v.major === from.major &&
+						compareSemver(v.version, from.version) > 0,
+				)
 				.map((v) => v.version)
 				.at(-1) ?? from.version;
 		} //
@@ -383,7 +510,7 @@ export class Migrate {
 					(v) =>
 						v.major === from.major &&
 						v.minor === from.minor &&
-						v.patch > from.patch,
+						compareSemver(v.version, from.version) > 0,
 				)
 				.map((v) => v.version)
 				.at(-1) ?? from.version;
@@ -407,8 +534,14 @@ export class Migrate {
 	 * @returns The number of migration steps executed.
 	 * @throws {Error} If the target version is not found or if a migration fails.
 	 */
-	async up(
+	up(
 		target: "latest" | "major" | "minor" | "patch" | string = "latest",
+	): Promise<number> {
+		return this.#serialize(() => this.#upUnlocked(target));
+	}
+
+	async #upUnlocked(
+		target: "latest" | "major" | "minor" | "patch" | string,
 	): Promise<number> {
 		const activeVersion = await this.getActiveVersion();
 		const { fromIndex, toIndex, fromVersion, toVersion, isInitial } =
@@ -453,10 +586,8 @@ export class Migrate {
 					);
 				}
 
-				// prettier-ignore
 				this.#log(
-					`--> Upgrading from "${await this
-						.getActiveVersion()}" to "${version}" ...`,
+					`--> Upgrading from "${this.#versions.active?.version}" to "${version}" ...`,
 				);
 
 				try {
@@ -484,7 +615,7 @@ export class Migrate {
 
 		this.#log(`--> ✔ Done in ${successCounter} steps`);
 
-		return Promise.resolve(successCounter);
+		return successCounter;
 	}
 
 	/**
@@ -514,12 +645,7 @@ export class Migrate {
 			throw new Error("Cannot downgrade from undefined version");
 		}
 
-		const from = await this.findVersion(fromVersionLabel, true)!;
-
-		// This is unexpected - getActiveVersion() must have returned an unknown version
-		if (!from) {
-			throw new Error(`Version not found ("${fromVersionLabel}")?!?`);
-		}
+		const from = this.findVersion(fromVersionLabel, true)!;
 
 		let toVersion: string | undefined = target;
 
@@ -529,24 +655,33 @@ export class Migrate {
 		} //
 		else if (target === "major") {
 			// This will find the previous closest major, even if there are gaps
-			toVersion = this.__versions.items
-				.filter((v) => v.major < from.major)
+			toVersion = this.#versions.items
+				.filter(
+					(v) =>
+						v.major < from.major &&
+						compareSemver(v.version, from.version) < 0,
+				)
 				.map((v) => v.version)
 				.at(-1) ?? from.version;
 		} //
 		else if (target === "minor") {
-			toVersion = this.__versions.items
-				.filter((v) => v.major === from.major && v.minor < from.minor)
+			toVersion = this.#versions.items
+				.filter(
+					(v) =>
+						v.major === from.major &&
+						v.minor < from.minor &&
+						compareSemver(v.version, from.version) < 0,
+				)
 				.map((v) => v.version)
 				.at(-1) ?? from.version;
 		} //
 		else if (target === "patch") {
-			toVersion = this.__versions.items
+			toVersion = this.#versions.items
 				.filter(
 					(v) =>
 						v.major === from.major &&
 						v.minor === from.minor &&
-						v.patch < from.patch,
+						compareSemver(v.version, from.version) < 0,
 				)
 				.map((v) => v.version)
 				.at(-1) ?? from.version;
@@ -569,8 +704,14 @@ export class Migrate {
 	 * @returns The number of migration steps executed.
 	 * @throws {Error} If there is no active version, target is not found, or if a migration fails.
 	 */
-	async down(
+	down(
 		target: "initial" | "major" | "minor" | "patch" | string = "major",
+	): Promise<number> {
+		return this.#serialize(() => this.#downUnlocked(target));
+	}
+
+	async #downUnlocked(
+		target: "initial" | "major" | "minor" | "patch" | string,
 	): Promise<number> {
 		const activeVersion = await this.getActiveVersion();
 		if (!activeVersion) {
@@ -611,20 +752,17 @@ export class Migrate {
 				const version = this.#versions.at(i);
 
 				// When downgrading, our target is i-1
-				const target = this.#versions.at(i - 1);
+				const nextActive = this.#versions.at(i - 1);
 
 				// This is unexpected - there must have been an error in downMeta
-				// prettier-ignore
 				if (!version) {
 					throw new Error(
 						`Version not found?!? (${fromVersion}, ${fromIndex})`,
 					);
 				}
 
-				// prettier-ignore
 				this.#log(
-					`--> Downgrading from "${await this
-						.getActiveVersion()}" to "${target?.version}" ...`,
+					`--> Downgrading from "${this.#versions.active?.version}" to "${nextActive?.version}" ...`,
 				);
 
 				try {
@@ -637,14 +775,14 @@ export class Migrate {
 				}
 
 				try {
-					await this.setActiveVersion(target?.version);
+					await this.setActiveVersion(nextActive?.version);
 					successCounter++;
 					// We just downgraded
-					this.#log(`OK "${target?.version}"`);
+					this.#log(`OK "${nextActive?.version}"`);
 				} catch (e) {
 					throw new Error(
 						`The downgrade operation succeeded, but was unable to save the downgraded ` +
-							`version "${target?.version}". System may be unstable. You should manually ` +
+							`version "${nextActive?.version}". System may be unstable. You should manually ` +
 							`fix the version before continuing. (Details: ${e})`,
 					);
 				}
@@ -653,23 +791,27 @@ export class Migrate {
 
 		this.#log(`--> ✔ Done in ${successCounter} steps`);
 
-		return Promise.resolve(successCounter);
+		return successCounter;
 	}
 
 	/**
 	 * Performs a complete uninstall by downgrading from the initial version to a blank slate.
 	 * This is a special case that removes even the initial version.
 	 * @returns The number of migration steps executed.
-	 * @throws {Error} If the uninstall operation fails.
+	 * @throws {Error} If the uninstall operation fails (including when the initial version is irreversible).
 	 */
-	async uninstall(): Promise<number> {
+	uninstall(): Promise<number> {
+		return this.#serialize(() => this.#uninstallUnlocked());
+	}
+
+	async #uninstallUnlocked(): Promise<number> {
 		this.#log(`--> Uninstalling ...`);
 		if ((await this.getActiveVersion()) === undefined) {
 			this.#log("Ignoring, as no active version was found");
 			return 0;
 		}
 
-		let successCounter = await this.down("initial");
+		let successCounter = await this.#downUnlocked("initial");
 
 		try {
 			this.#log(`--> Final down step`);
@@ -681,7 +823,6 @@ export class Migrate {
 
 		try {
 			await this.setActiveVersion(undefined);
-			// this.#log(`OK, uninstalled`);
 		} catch (e) {
 			throw new Error(
 				`The uninstall operation itself succeeded, but was unable to remove the ` +
@@ -692,6 +833,96 @@ export class Migrate {
 
 		this.#log(`--> ✔ Uninstalled in ${successCounter} steps`);
 
-		return Promise.resolve(successCounter);
+		return successCounter;
+	}
+
+	/**
+	 * Produces the ordered list of steps that {@link up} or {@link down} would
+	 * execute for the given target without actually running any migration
+	 * functions or mutating any state. Useful for dry-runs, UIs and tests.
+	 *
+	 * @param direction - "up" or "down".
+	 * @param target - Semver keyword ("latest"/"major"/"minor"/"patch" for up;
+	 * "initial"/"major"/"minor"/"patch" for down) or a specific version.
+	 * @returns A {@link Plan} describing the computed path.
+	 * @throws {Error} If the target cannot be resolved, or for `down` when
+	 * there is no active version.
+	 */
+	async plan(
+		direction: "up" | "down",
+		target?: string,
+	): Promise<Plan> {
+		if (direction === "up") {
+			const activeVersion = await this.getActiveVersion();
+			const meta = await this.__upMeta(target ?? "latest", activeVersion);
+			const fromIndex = meta?.fromIndex ?? -1;
+			const toIndex = meta?.toIndex ?? -1;
+			if (fromIndex === -1 || toIndex === -1) {
+				throw new Error(`Unable to find matching up version for "${target}"`);
+			}
+			const steps: PlanStep[] = [];
+			if (meta && (meta.isInitial || fromIndex < toIndex)) {
+				for (let i = fromIndex; i <= toIndex; i++) {
+					if (!meta.isInitial && i === fromIndex) continue;
+					const v = this.#versions.at(i)!;
+					steps.push({ version: v.version, activeAfter: v.version });
+				}
+			}
+			return {
+				direction: "up",
+				fromVersion: activeVersion,
+				toVersion: meta?.toVersion,
+				steps,
+			};
+		}
+
+		const activeVersion = await this.getActiveVersion();
+		if (!activeVersion) {
+			throw new Error("Cannot downgrade from undefined version");
+		}
+		const meta = await this.__downMeta(target ?? "major", activeVersion);
+		const fromIndex = meta?.fromIndex ?? -1;
+		const toIndex = meta?.toIndex ?? -1;
+		if (fromIndex === -1 || toIndex === -1) {
+			throw new Error(`Unable to find matching down version for "${target}"`);
+		}
+		const steps: PlanStep[] = [];
+		if (meta && fromIndex > toIndex) {
+			for (let i = fromIndex; i > toIndex; i--) {
+				const v = this.#versions.at(i)!;
+				const next = this.#versions.at(i - 1);
+				steps.push({ version: v.version, activeAfter: next?.version });
+			}
+		}
+		return {
+			direction: "down",
+			fromVersion: activeVersion,
+			toVersion: meta?.toVersion,
+			steps,
+		};
+	}
+
+	/**
+	 * Produces a status snapshot.
+	 * @returns Current active version, latest known version, whether we are at
+	 * the latest, and the list of pending version strings.
+	 */
+	async status(): Promise<Status> {
+		const active = await this.getActiveVersion();
+		const all = this.available;
+		const latest = all.at(-1);
+		let pending: string[];
+		if (active === undefined) {
+			pending = all.slice();
+		} else {
+			const idx = this.indexOf(active);
+			pending = idx === -1 ? all.slice() : all.slice(idx + 1);
+		}
+		return {
+			active,
+			latest,
+			isAtLatest: active !== undefined && active === latest,
+			pending,
+		};
 	}
 }

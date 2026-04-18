@@ -286,3 +286,208 @@ Deno.test("up down", async () => {
 	assertEquals(await m.getActiveVersion(), "4.0.0");
 	assertEquals(getLog(), ["clean", "a", "b", "c", "d"]);
 });
+
+Deno.test("up('patch') bridges prerelease to release (H3)", async () => {
+	const m = new Migrate();
+	m.addVersion("1.0.0-alpha", noop, noop);
+	m.addVersion("1.0.0", noop, noop);
+	m.addVersion("1.0.1", noop, noop);
+	m.addVersion("1.1.0", noop, noop);
+
+	await m.setActiveVersion("1.0.0-alpha");
+
+	// "patch" from a prerelease should reach the release (and its patch successors)
+	const meta = await m.__upMeta("patch");
+	assertEquals(meta?.toVersion, "1.0.1");
+
+	// "minor" from a prerelease should reach into higher minor
+	const minorMeta = await m.__upMeta("minor");
+	assertEquals(minorMeta?.toVersion, "1.1.0");
+});
+
+Deno.test("down('patch') bridges release to prerelease (H3)", async () => {
+	const m = new Migrate();
+	m.addVersion("1.0.0-alpha", noop, noop);
+	m.addVersion("1.0.0", noop, noop);
+
+	await m.setActiveVersion("1.0.0");
+	const meta = await m.__downMeta("patch");
+	assertEquals(meta?.toVersion, "1.0.0-alpha");
+});
+
+Deno.test("cold-start syncs internal active from external getter (H4)", async () => {
+	let externalVersion: string | undefined = "2.0.0";
+	const m = new Migrate({
+		getActiveVersion: () => Promise.resolve(externalVersion),
+		setActiveVersion: (v) => {
+			externalVersion = v;
+			return Promise.resolve();
+		},
+	});
+	m.addVersion("1.0.0", noop, noop);
+	m.addVersion("2.0.0", noop, noop);
+	m.addVersion("3.0.0", noop, noop);
+
+	// Internal not synced yet
+	assertEquals(m.__versions.active, undefined);
+	// Reading through public API should sync internal state
+	assertEquals(await m.getActiveVersion(), "2.0.0");
+	assertEquals(m.__versions.active?.version, "2.0.0");
+
+	// And it stays in sync when external changes
+	externalVersion = "3.0.0";
+	assertEquals(await m.getActiveVersion(), "3.0.0");
+	assertEquals(m.__versions.active?.version, "3.0.0");
+
+	// Undefined clears internal too
+	externalVersion = undefined;
+	assertEquals(await m.getActiveVersion(), undefined);
+	assertEquals(m.__versions.active, undefined);
+});
+
+Deno.test("concurrent up() calls are serialized (M1)", async () => {
+	const events: string[] = [];
+	const slow = (tag: string, ms = 5) => () =>
+		new Promise<void>((r) => {
+			events.push(`start-${tag}`);
+			setTimeout(() => {
+				events.push(`end-${tag}`);
+				r();
+			}, ms);
+		});
+
+	const m = new Migrate();
+	m.addVersion("1.0.0", slow("v1"), noop);
+	m.addVersion("2.0.0", slow("v2"), noop);
+
+	const [a, b] = await Promise.all([m.up("latest"), m.up("latest")]);
+
+	// First call runs all migrations, second sees nothing to do
+	assertEquals(a, 2);
+	assertEquals(b, 0);
+
+	// No interleaving: every start is followed by its own end before next start
+	for (let i = 0; i < events.length; i += 2) {
+		const [startTag] = events[i].split("-").slice(1);
+		const [endEvent, endTag] = events[i + 1].split("-");
+		assertEquals(endEvent, "end");
+		assertEquals(endTag, startTag);
+	}
+});
+
+Deno.test("forceSetActiveVersion recovery helper (M2)", async () => {
+	let externalVersion: string | undefined;
+	const m = new Migrate({
+		getActiveVersion: () => Promise.resolve(externalVersion),
+		setActiveVersion: (v) => {
+			externalVersion = v;
+			return Promise.resolve();
+		},
+	});
+	m.addVersion("1.0.0", noop, noop);
+	m.addVersion("2.0.0", noop, noop);
+
+	// Force to a known version
+	assertEquals(await m.forceSetActiveVersion("2.0.0"), "2.0.0");
+	assertEquals(externalVersion, "2.0.0");
+	assertEquals(m.__versions.active?.version, "2.0.0");
+
+	// Force to a version unknown to the registry: external is still written,
+	// internal active is cleared rather than inventing a ghost.
+	assertEquals(await m.forceSetActiveVersion("9.9.9"), "9.9.9");
+	assertEquals(externalVersion, "9.9.9");
+	assertEquals(m.__versions.active, undefined);
+
+	// Clear
+	assertEquals(await m.forceSetActiveVersion(undefined), undefined);
+	assertEquals(externalVersion, undefined);
+});
+
+Deno.test("irreversible migrations (M5)", async () => {
+	const m = new Migrate();
+
+	// null marks a one-way migration
+	const v1 = m.addVersion("1.0.0", noop, noop);
+	const v2 = m.addVersion("2.0.0", noop, null);
+	const v3 = m.addVersion("3.0.0", noop, noop);
+
+	assert(v1.isReversible);
+	assert(!v2.isReversible);
+	assert(v3.isReversible);
+
+	await m.up("latest");
+	assertEquals(await m.getActiveVersion(), "3.0.0");
+
+	// Down from 3.0.0 to 2.0.0 works (calls v3.down)
+	await m.down(); // major: from 3 to 2
+	assertEquals(await m.getActiveVersion(), "2.0.0");
+
+	// Further down-walk tries to call v2.down() which throws
+	await assertRejects(() => m.down("initial"));
+
+	// And uninstall on a one-way initial fails loudly too
+	const m2 = new Migrate();
+	m2.addVersion("1.0.0", noop, null);
+	await m2.up("latest");
+	await assertRejects(() => m2.uninstall());
+});
+
+Deno.test("up() does not mutate state when migration throws", async () => {
+	const m = new Migrate();
+	m.addVersion("1.0.0", noop, noop);
+	m.addVersion("2.0.0", () => {
+		throw new Error("boom");
+	}, noop);
+	m.addVersion("3.0.0", noop, noop);
+
+	await assertRejects(() => m.up("latest"));
+	// We got to 1.0.0, failed on 2.0.0 - active should be 1.0.0, not 2.0.0
+	assertEquals(await m.getActiveVersion(), "1.0.0");
+});
+
+Deno.test("plan() produces steps without mutating state", async () => {
+	const m = new Migrate();
+	m.addVersion("1.0.0", noop, noop);
+	m.addVersion("2.0.0", noop, noop);
+	m.addVersion("3.0.0", noop, noop);
+
+	const upPlan = await m.plan("up", "latest");
+	assertEquals(upPlan.direction, "up");
+	assertEquals(upPlan.fromVersion, undefined);
+	assertEquals(upPlan.toVersion, "3.0.0");
+	assertEquals(upPlan.steps.map((s) => s.version), ["1.0.0", "2.0.0", "3.0.0"]);
+	// State is unchanged
+	assertEquals(await m.getActiveVersion(), undefined);
+
+	await m.up("latest");
+	const downPlan = await m.plan("down", "initial");
+	assertEquals(downPlan.direction, "down");
+	assertEquals(downPlan.fromVersion, "3.0.0");
+	assertEquals(downPlan.toVersion, "1.0.0");
+	assertEquals(downPlan.steps.map((s) => s.version), ["3.0.0", "2.0.0"]);
+	assertEquals(downPlan.steps.map((s) => s.activeAfter), ["2.0.0", "1.0.0"]);
+});
+
+Deno.test("status() reports pending migrations", async () => {
+	const m = new Migrate();
+	m.addVersion("1.0.0", noop, noop);
+	m.addVersion("2.0.0", noop, noop);
+	m.addVersion("3.0.0", noop, noop);
+
+	let s = await m.status();
+	assertEquals(s.active, undefined);
+	assertEquals(s.latest, "3.0.0");
+	assertEquals(s.isAtLatest, false);
+	assertEquals(s.pending, ["1.0.0", "2.0.0", "3.0.0"]);
+
+	await m.setActiveVersion("2.0.0");
+	s = await m.status();
+	assertEquals(s.active, "2.0.0");
+	assertEquals(s.pending, ["3.0.0"]);
+	assertEquals(s.isAtLatest, false);
+
+	await m.setActiveVersion("3.0.0");
+	s = await m.status();
+	assertEquals(s.isAtLatest, true);
+	assertEquals(s.pending, []);
+});

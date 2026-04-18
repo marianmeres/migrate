@@ -44,6 +44,9 @@ const m = new Migrate(options?, context?);
 // add available versions with migration functions
 m.addVersion('1.2.3', upFn, downFn, optionalComment);
 
+// register an irreversible (one-way) migration with `null` for down
+m.addVersion('1.2.4', upFn, null, 'one-way');
+
 // get/set the system's current version (initially undefined)
 await m.setActiveVersion('7.8.9');
 const current = await m.getActiveVersion();
@@ -54,7 +57,17 @@ await m.down('initial' | 'major' | 'minor' | 'patch' | version);
 
 // complete removal (downgrades past initial version)
 await m.uninstall();
+
+// inspect without mutating state
+const plan = await m.plan('up', 'latest');     // { direction, fromVersion, toVersion, steps }
+const status = await m.status();                // { active, latest, isAtLatest, pending }
+
+// recovery helper — write the active-version marker without
+// validating against the registered set (e.g. after a partial failure)
+await m.forceSetActiveVersion('1.2.3');
 ```
+
+Concurrent calls to `up()`, `down()` and `uninstall()` on the same `Migrate` instance are automatically serialized.
 
 For complete API reference including all methods, types, and semver utilities, see [API.md](./API.md).
 

@@ -6,7 +6,7 @@ Machine-readable comprehensive documentation for AI agents and LLMs.
 
 ```yaml
 name: "@marianmeres/migrate"
-version: "1.1.1"
+version: "2.0.0"
 author: "Marian Meres"
 license: "MIT"
 repository: "https://github.com/marianmeres/migrate"
@@ -37,29 +37,43 @@ A general-purpose extensible versioning framework for managing incremental, bi-d
 
 ### Migration Model
 
-- Each version has paired `up()` and `down()` functions
+- Each version has a required `up()` and an optional `down()` function
 - `up()` executes when upgrading TO this version
 - `down()` executes when downgrading FROM this version
+- Omitting `down` (passing `null`/`undefined`) marks the version as **irreversible** — any `down()`/`uninstall()` that reaches it throws
 - Context object passed to all migration functions
 
 ### Upgrade Strategy (Greedy)
 
 - Goes as far as possible within constraints
 - `up("latest")` → highest version
-- `up("major")` → highest of next major
-- `up("minor")` → highest within current major
-- `up("patch")` → highest within current minor
+- `up("major")` → highest of next major (strictly greater major segment)
+- `up("minor")` → highest within current major, strictly greater than current version
+- `up("patch")` → highest within current major + minor, strictly greater than current version
+
+Semver increments use full semver ordering (via `compareSemver`), so they correctly bridge prerelease → release boundaries (e.g. `up("patch")` from `1.0.0-alpha` can reach `1.0.0` / `1.0.x`).
 
 ### Downgrade Strategy (Conservative)
 
 - Typically one step at a time
 - `down("initial")` → first version (keeps it)
-- `down("major")` → previous major (one step)
+- `down("major")` → highest strictly-lower version in a previous major
+- `down("minor")` → highest strictly-lower version in the same major
+- `down("patch")` → highest strictly-lower version in the same major + minor
 - `down()` → defaults to one major step down
+
+### State Consistency
+
+- When an external `getActiveVersion` is configured, it is the source of truth; every call reads through it and the in-memory active item is synced to match (avoids cold-start divergence between code-registered versions and the persisted marker).
+- `up()` / `down()` / `uninstall()` on the same instance are **serialized** via an internal promise chain — concurrent calls run one at a time.
+- Partial failure (migration ran, marker write failed) throws a clear "system may be unstable" error. Use `forceSetActiveVersion()` to reconcile the marker during recovery.
 
 ### Special Operations
 
-- `uninstall()` → downgrades past initial, sets version to undefined
+- `uninstall()` → downgrades past initial, sets version to undefined. Fails if any version on the path (including the initial one) is irreversible.
+- `plan(direction, target?)` → dry-run; returns ordered steps without executing
+- `status()` → snapshot of active/latest/pending
+- `forceSetActiveVersion(version)` → write marker without registry validation (recovery)
 
 ## File Structure
 
@@ -70,8 +84,8 @@ src/
   semver.ts       # normalizeSemver, parseSemver, compareSemver
 
 tests/
-  migrate.test.ts # Migration tests (5 tests)
-  semver.test.ts  # Semver utility tests (3 tests)
+  migrate.test.ts # Migration tests (14 tests)
+  semver.test.ts  # Semver utility tests (4 tests)
   example.test.ts # Progress tracking example (1 test)
 
 example/
@@ -94,25 +108,32 @@ export class Version
 // Types
 export interface MigrateOptions
 export type MigrateFn
+export interface Plan
+export interface PlanStep
+export interface Status
 
-// Semver utilities
-export function normalizeSemver(version: string, assert?: boolean): string
+// Semver utilities (overloaded)
+export function normalizeSemver(version: string, assert?: true): string
+export function normalizeSemver(version: string, assert: false): string | undefined
 export function parseSemver(version: string): ParsedSemver
 export function compareSemver(a: string, b: string): number
 ```
 
 ### Migrate Class Methods
 
-| Method             | Signature                       | Returns                        | Description      |
-| ------------------ | ------------------------------- | ------------------------------ | ---------------- |
-| `addVersion`       | `(version, up, down, comment?)` | `Version`                      | Register version |
-| `getActiveVersion` | `()`                            | `Promise<string \| undefined>` | Get current      |
-| `setActiveVersion` | `(version)`                     | `Promise<string \| undefined>` | Set current      |
-| `up`               | `(target?)`                     | `Promise<number>`              | Upgrade          |
-| `down`             | `(target?)`                     | `Promise<number>`              | Downgrade        |
-| `uninstall`        | `()`                            | `Promise<number>`              | Remove all       |
-| `indexOf`          | `(version)`                     | `number`                       | Find index       |
-| `findVersion`      | `(version, assert?)`            | `Version \| undefined`         | Find instance    |
+| Method                   | Signature                        | Returns                        | Description                                                |
+| ------------------------ | -------------------------------- | ------------------------------ | ---------------------------------------------------------- |
+| `addVersion`             | `(version, up, down?, comment?)` | `Version`                      | Register version (`down=null` → irreversible)              |
+| `getActiveVersion`       | `()`                             | `Promise<string \| undefined>` | Get current (syncs internal from external when configured) |
+| `setActiveVersion`       | `(version)`                      | `Promise<string \| undefined>` | Set current (validates against registry)                   |
+| `forceSetActiveVersion`  | `(version)`                      | `Promise<string \| undefined>` | Write marker without registry validation (recovery)        |
+| `up`                     | `(target?)`                      | `Promise<number>`              | Upgrade (serialized)                                       |
+| `down`                   | `(target?)`                      | `Promise<number>`              | Downgrade (serialized)                                     |
+| `uninstall`              | `()`                             | `Promise<number>`              | Remove all (serialized)                                    |
+| `plan`                   | `(direction, target?)`           | `Promise<Plan>`                | Dry-run: resolved steps without execution                  |
+| `status`                 | `()`                             | `Promise<Status>`              | Snapshot: active/latest/pending                            |
+| `indexOf`                | `(version)`                      | `number`                       | Find index                                                 |
+| `findVersion`            | `(version, assert?)`             | `Version \| undefined`         | Find instance                                              |
 
 ### Migrate Class Properties
 
@@ -125,15 +146,16 @@ export function compareSemver(a: string, b: string): number
 
 ### Version Class Properties
 
-| Property     | Type                  | Description        |
-| ------------ | --------------------- | ------------------ |
-| `version`    | `string`              | Normalized version |
-| `major`      | `number`              | Major segment      |
-| `minor`      | `number`              | Minor segment      |
-| `patch`      | `number`              | Patch segment      |
-| `prerelease` | `string`              | Prerelease label   |
-| `build`      | `string`              | Build metadata     |
-| `comment`    | `string \| undefined` | Description        |
+| Property       | Type                  | Description                                           |
+| -------------- | --------------------- | ----------------------------------------------------- |
+| `version`      | `string`              | Normalized version                                    |
+| `major`        | `number`              | Major segment                                         |
+| `minor`        | `number`              | Minor segment                                         |
+| `patch`        | `number`              | Patch segment                                         |
+| `prerelease`   | `string`              | Prerelease label                                      |
+| `build`        | `string`              | Build metadata                                        |
+| `comment`      | `string \| undefined` | Description                                           |
+| `isReversible` | `boolean`             | `false` if registered without a `down` worker         |
 
 ## Dependencies
 
@@ -199,14 +221,16 @@ await app.uninstall(); // Remove all
 
 ## Error Conditions
 
-| Condition                | Error Message Pattern                           |
-| ------------------------ | ----------------------------------------------- |
-| Duplicate version        | `"Version already exists"`                      |
-| Version not found        | `"Version not found"`                           |
-| Target not found         | `"Unable to find matching"`                     |
-| Downgrade from undefined | `"Cannot downgrade from undefined"`             |
-| Migration failure        | `"The upgrade/downgrade to version ... failed"` |
-| Save failure             | `"unable to save the ... version"`              |
+| Condition                    | Error Message Pattern                           |
+| ---------------------------- | ----------------------------------------------- |
+| Duplicate version            | `"Version already exists"`                      |
+| Version not found            | `"Version not found"`                           |
+| Target not found             | `"Unable to find matching"`                     |
+| Downgrade from undefined     | `"Cannot downgrade from undefined"`             |
+| Migration failure            | `"The upgrade/downgrade to version ... failed"` |
+| Save failure                 | `"unable to save the ... version"`              |
+| Irreversible version reached | `"is irreversible (no down worker registered)"` |
+| Invalid semver input         | `TypeError: Invalid version "..."`              |
 
 ## Testing
 

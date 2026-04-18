@@ -1,11 +1,11 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@marianmeres/item-collection@^1.4.1": "1.4.1",
+    "jsr:@marianmeres/item-collection@^1.4.2": "1.4.2",
     "jsr:@marianmeres/mcp-server@*": "1.1.2",
-    "jsr:@marianmeres/npmbuild@^1.12.0": "1.12.0",
+    "jsr:@marianmeres/npmbuild@^1.13.0": "1.13.0",
     "jsr:@marianmeres/pubsub@3": "3.0.0",
-    "jsr:@marianmeres/searchable@^2.6.3": "2.6.3",
+    "jsr:@marianmeres/searchable@^2.6.4": "2.6.4",
     "jsr:@std/assert@^1.0.19": "1.0.19",
     "jsr:@std/cli@^1.0.28": "1.0.28",
     "jsr:@std/collections@^1.1.6": "1.1.6",
@@ -19,8 +19,8 @@
     "npm:zod@^3.24.0": "3.25.76"
   },
   "jsr": {
-    "@marianmeres/item-collection@1.4.1": {
-      "integrity": "9826fc4b165c405ac38c1b132ec9d6706cba036057629001915aa1c3e09ed0b2",
+    "@marianmeres/item-collection@1.4.2": {
+      "integrity": "578381a18a05401143fbe9625405bf5a32800ac9767afe689d8db437611af064",
       "dependencies": [
         "jsr:@marianmeres/pubsub",
         "jsr:@marianmeres/searchable"
@@ -32,8 +32,8 @@
         "npm:zod@^3.24.0"
       ]
     },
-    "@marianmeres/npmbuild@1.12.0": {
-      "integrity": "17561243fdd772580a3bcc46d79c37f2d99af4146d3261a716a4180560c12e6e",
+    "@marianmeres/npmbuild@1.13.0": {
+      "integrity": "6283bc3fce312cf8a15fb1b979bc7e974fb99849ae0b449aa5a4837e4e7bb635",
       "dependencies": [
         "jsr:@std/collections",
         "jsr:@std/fs",
@@ -43,8 +43,8 @@
     "@marianmeres/pubsub@3.0.0": {
       "integrity": "9bc40e60362801663fb23e0c00a353abec7684840b6bea410facba09c083677b"
     },
-    "@marianmeres/searchable@2.6.3": {
-      "integrity": "cddbe8f664268c03944b50b8dcea3367544fc246e117b8e01a1bb7239484dab4"
+    "@marianmeres/searchable@2.6.4": {
+      "integrity": "05583fafeccad7ecd930e686656e0baaea7be38301abb2bd0f52f17d69dd6a8a"
     },
     "@std/assert@1.0.19": {
       "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
@@ -160,8 +160,8 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@marianmeres/item-collection@^1.4.1",
-      "jsr:@marianmeres/npmbuild@^1.12.0",
+      "jsr:@marianmeres/item-collection@^1.4.2",
+      "jsr:@marianmeres/npmbuild@^1.13.0",
       "jsr:@std/assert@^1.0.19",
       "jsr:@std/cli@^1.0.28",
       "jsr:@std/fs@^1.0.23",

@@ -1,4 +1,4 @@
-import { npmBuild } from "@marianmeres/npmbuild";
+import { npmBuild, versionizeDeps } from "@marianmeres/npmbuild";
 
 const denoJson = JSON.parse(Deno.readTextFileSync("deno.json"));
 
@@ -6,5 +6,5 @@ await npmBuild({
 	name: denoJson.name,
 	version: denoJson.version,
 	repository: denoJson.name.replace(/^@/, ""),
-	dependencies: ["@marianmeres/item-collection"],
+	dependencies: versionizeDeps(["@marianmeres/item-collection"], "../deno.json"),
 });

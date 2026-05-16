@@ -14,9 +14,9 @@
   },
   "imports": {
     "@marianmeres/item-collection": "jsr:@marianmeres/item-collection@^1.4.2",
-    "@marianmeres/npmbuild": "jsr:@marianmeres/npmbuild@^1.13.0",
+    "@marianmeres/npmbuild": "jsr:@marianmeres/npmbuild@^1.16.0",
     "@std/assert": "jsr:@std/assert@^1.0.19",
-    "@std/cli": "jsr:@std/cli@^1.0.28",
+    "@std/cli": "jsr:@std/cli@^1.0.29",
     "@std/fs": "jsr:@std/fs@^1.0.23",
     "@std/path": "jsr:@std/path@^1.1.4",
     "dotenv": "npm:dotenv@^17.4.2",

@@ -6,7 +6,7 @@ Machine-readable comprehensive documentation for AI agents and LLMs.
 
 ```yaml
 name: "@marianmeres/migrate"
-version: "2.0.0"
+version: "1.3.0"
 author: "Marian Meres"
 license: "MIT"
 repository: "https://github.com/marianmeres/migrate"

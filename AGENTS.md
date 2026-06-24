@@ -81,11 +81,13 @@ Semver increments use full semver ordering (via `compareSemver`), so they correc
 src/
   mod.ts          # Main exports, module documentation
   migrate.ts      # Migrate and Version classes
-  semver.ts       # normalizeSemver, parseSemver, compareSemver
+
+# Semver utilities (normalizeSemver, parseSemver, compareSemver) live in the
+# standalone @marianmeres/semver package and are re-exported from mod.ts (DRY).
 
 tests/
   migrate.test.ts # Migration tests (14 tests)
-  semver.test.ts  # Semver utility tests (4 tests)
+  semver.test.ts  # Smoke test of the re-exported semver surface (4 tests)
   example.test.ts # Progress tracking example (1 test)
 
 example/
@@ -112,7 +114,8 @@ export interface Plan
 export interface PlanStep
 export interface Status
 
-// Semver utilities (overloaded)
+// Semver utilities — re-exported from @marianmeres/semver (overloaded)
+export interface ParsedSemver
 export function normalizeSemver(version: string, assert?: true): string
 export function normalizeSemver(version: string, assert: false): string | undefined
 export function parseSemver(version: string): ParsedSemver
@@ -162,6 +165,7 @@ export function compareSemver(a: string, b: string): number
 ```yaml
 runtime:
     - "@marianmeres/item-collection" # Collection management
+    - "@marianmeres/semver" # Semver parse/normalize/compare utilities
 
 dev_only:
     - "@std/assert" # Testing

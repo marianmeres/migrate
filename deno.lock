@@ -6,6 +6,7 @@
     "jsr:@marianmeres/npmbuild@^1.16.0": "1.16.0",
     "jsr:@marianmeres/pubsub@3": "3.0.0",
     "jsr:@marianmeres/searchable@^2.6.4": "2.6.4",
+    "jsr:@marianmeres/semver@1": "1.0.0",
     "jsr:@std/assert@^1.0.19": "1.0.19",
     "jsr:@std/cli@^1.0.29": "1.0.29",
     "jsr:@std/collections@^1.1.7": "1.1.7",
@@ -46,6 +47,9 @@
     },
     "@marianmeres/searchable@2.6.4": {
       "integrity": "05583fafeccad7ecd930e686656e0baaea7be38301abb2bd0f52f17d69dd6a8a"
+    },
+    "@marianmeres/semver@1.0.0": {
+      "integrity": "478b19392a96a70c115e699a12dd6e98a22d2f9de62c454122291b56a94aefb6"
     },
     "@std/assert@1.0.19": {
       "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
@@ -163,6 +167,7 @@
     "dependencies": [
       "jsr:@marianmeres/item-collection@^1.4.2",
       "jsr:@marianmeres/npmbuild@^1.16.0",
+      "jsr:@marianmeres/semver@1",
       "jsr:@std/assert@^1.0.19",
       "jsr:@std/cli@^1.0.29",
       "jsr:@std/fs@^1.0.23",

@@ -7,8 +7,9 @@
 ## Quick Reference
 
 - **Entry point:** `src/mod.ts`
-- **Core files:** `src/migrate.ts` (Migrate, Version classes), `src/semver.ts` (semver utilities)
-- **Tests:** `tests/*.test.ts` (9 tests total)
+- **Core files:** `src/migrate.ts` (Migrate, Version classes)
+- **Semver utilities:** re-exported from the standalone `@marianmeres/semver` package (not vendored here)
+- **Tests:** `tests/*.test.ts` (19 tests total)
 - **Runtime:** Deno and Node.js
 
 ## Key Concepts

@@ -16,6 +16,7 @@ This document provides a complete reference for the `@marianmeres/migrate` packa
   - [normalizeSemver](#normalizesemver)
   - [parseSemver](#parsesemver)
   - [compareSemver](#comparesemver)
+  - [ParsedSemver](#parsedsemver)
 
 ---
 
@@ -375,6 +376,8 @@ toString(): string
 
 ## Semver Utilities
 
+These utilities are provided by the standalone [`@marianmeres/semver`](https://jsr.io/@marianmeres/semver) package and re-exported here for convenience, so they can be imported directly from `@marianmeres/migrate`. The `ParsedSemver` type is re-exported as well.
+
 ### normalizeSemver
 
 Normalizes a version string to comply with semver format (MAJOR.MINOR.PATCH). Prerelease and build identifiers must only contain semver-spec characters (`[0-9A-Za-z-.]`).
@@ -407,16 +410,10 @@ normalizeSemver("1.0.0-foo_bar"); // throws (underscore is not a valid semver ch
 Parses a semver string into its component parts.
 
 ```typescript
-function parseSemver(version: string): {
-	major: number;
-	minor: number;
-	patch: number;
-	prerelease: string;
-	build: string;
-};
+function parseSemver(version: string): ParsedSemver;
 ```
 
-**Returns:** An object containing the parsed version components.
+**Returns:** A [`ParsedSemver`](#parsedsemver) object containing the parsed version components.
 
 **Example:**
 
@@ -451,3 +448,17 @@ compareSemver("1.0.0-alpha", "1.0.0"); // negative (prerelease < release)
 
 - Prerelease versions have lower precedence than normal versions
 - Build metadata is ignored for version precedence
+
+### ParsedSemver
+
+The shape returned by [`parseSemver`](#parsesemver).
+
+```typescript
+interface ParsedSemver {
+	major: number;      // the X in X.y.z
+	minor: number;      // the Y in x.Y.z
+	patch: number;      // the Z in x.y.Z
+	prerelease: string; // prerelease without leading "-" (e.g. "rc.1"), or ""
+	build: string;      // build metadata without leading "+" (e.g. "build.123"), or ""
+}
+```

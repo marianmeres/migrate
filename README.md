@@ -69,7 +69,7 @@ await m.forceSetActiveVersion('1.2.3');
 
 Concurrent calls to `up()`, `down()` and `uninstall()` on the same `Migrate` instance are automatically serialized.
 
-For complete API reference including all methods, types, and semver utilities, see [API.md](./API.md).
+For complete API reference including all methods, types, and semver utilities, see [API.md](./API.md). The semver utilities (`normalizeSemver`, `parseSemver`, `compareSemver`) are re-exported from the standalone [@marianmeres/semver](https://jsr.io/@marianmeres/semver) package.
 
 ## DB migrate implementation example
 

@@ -23,4 +23,6 @@
  * ```
  */
 export * from "./migrate.ts";
-export * from "./semver.ts";
+// Semver utilities live in the standalone @marianmeres/semver package; re-export
+// them here to preserve this package's public API surface (DRY).
+export * from "@marianmeres/semver";

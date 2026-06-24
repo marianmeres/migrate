@@ -6,8 +6,7 @@
  * the {@linkcode Version} class for representing individual versions.
  */
 import { ItemCollection } from "@marianmeres/item-collection";
-import { parseSemver } from "./mod.ts";
-import { compareSemver, normalizeSemver } from "./semver.ts";
+import { compareSemver, normalizeSemver, parseSemver } from "@marianmeres/semver";
 
 /** The constructor options for the Migrate class. */
 export interface MigrateOptions {

@@ -1,5 +1,7 @@
 import { assertEquals, assertThrows } from "@std/assert";
-import { compareSemver, normalizeSemver, parseSemver } from "../src/semver.ts";
+// Smoke-test the semver utilities re-exported from @marianmeres/semver through
+// this package's public entry point.
+import { compareSemver, normalizeSemver, parseSemver } from "../src/mod.ts";
 
 function shuffle(array: any[]): any[] {
 	return array.toSorted(() => Math.random() - 0.5);

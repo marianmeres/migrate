@@ -17,11 +17,11 @@
     "@marianmeres/npmbuild": "jsr:@marianmeres/npmbuild@^1.16.0",
     "@marianmeres/semver": "jsr:@marianmeres/semver@^1.0.0",
     "@std/assert": "jsr:@std/assert@^1.0.19",
-    "@std/cli": "jsr:@std/cli@^1.0.29",
-    "@std/fs": "jsr:@std/fs@^1.0.23",
-    "@std/path": "jsr:@std/path@^1.1.4",
+    "@std/cli": "jsr:@std/cli@^1.0.30",
+    "@std/fs": "jsr:@std/fs@^1.0.24",
+    "@std/path": "jsr:@std/path@^1.1.5",
     "dotenv": "npm:dotenv@^17.4.2",
-    "pg": "npm:pg@^8.20.0"
+    "pg": "npm:pg@^8.22.0"
   },
   "fmt": {
     "useTabs": true,

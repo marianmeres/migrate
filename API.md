@@ -37,11 +37,11 @@ interface MigrateOptions {
 }
 ```
 
-| Property           | Type       | Description                                                                                                                                                 |
-| ------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Property           | Type       | Description                                                                                                                                                                                                                     |
+| ------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `getActiveVersion` | `function` | Async reader for the current active version (e.g., database). If not provided, the version is kept in memory only. When set, the framework calls it on every `getActiveVersion()` and syncs the in-memory active item to match. |
-| `setActiveVersion` | `function` | Async writer for the current active version. If not provided, the version is kept in memory only. The resolved value is ignored — return anything (commonly `Promise<void>`). |
-| `logger`           | `function` | Optional debug logger function. Receives timestamped log messages.                                                                                          |
+| `setActiveVersion` | `function` | Async writer for the current active version. If not provided, the version is kept in memory only. The resolved value is ignored — return anything (commonly `Promise<void>`).                                                   |
+| `logger`           | `function` | Optional debug logger function. Receives timestamped log messages.                                                                                                                                                              |
 
 ### MigrateFn
 
@@ -125,12 +125,12 @@ addVersion(
 ): Version
 ```
 
-| Parameter | Type                    | Description                                                                                                                                |
-| --------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `version` | `string`                | The version string (will be normalized to semver format).                                                                                  |
-| `up`      | `MigrateFn`             | The upgrade function to execute when migrating up to this version.                                                                         |
-| `down`    | `MigrateFn \| null`     | The downgrade function. Pass `null` (or omit) to mark the version as **irreversible** — any `down()`/`uninstall()` that reaches it throws. |
-| `comment` | `string`                | Optional comment or description for this version.                                                                                          |
+| Parameter | Type                | Description                                                                                                                                |
+| --------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `version` | `string`            | The version string (will be normalized to semver format).                                                                                  |
+| `up`      | `MigrateFn`         | The upgrade function to execute when migrating up to this version.                                                                         |
+| `down`    | `MigrateFn \| null` | The downgrade function. Pass `null` (or omit) to mark the version as **irreversible** — any `down()`/`uninstall()` that reaches it throws. |
+| `comment` | `string`            | Optional comment or description for this version.                                                                                          |
 
 **Returns:** The created `Version` instance.
 
@@ -176,9 +176,9 @@ async forceSetActiveVersion(
 ): Promise<string | undefined>
 ```
 
-| Parameter | Type                   | Description                                                                                                 |
-| --------- | ---------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `version` | `string \| undefined`  | Normalized semver string, or `undefined` to clear the marker. Unknown versions clear the in-memory active item but are still written to external storage verbatim. |
+| Parameter | Type                  | Description                                                                                                                                                        |
+| --------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `version` | `string \| undefined` | Normalized semver string, or `undefined` to clear the marker. Unknown versions clear the in-memory active item but are still written to external storage verbatim. |
 
 **Returns:** The normalized version written, or `undefined`.
 
@@ -261,10 +261,10 @@ async plan(
 ): Promise<Plan>
 ```
 
-| Parameter   | Type              | Description                                                                                    |
-| ----------- | ----------------- | ---------------------------------------------------------------------------------------------- |
-| `direction` | `"up" \| "down"`  | Which plan to compute.                                                                          |
-| `target`    | `string`          | Same target vocabulary as `up` / `down`. Defaults to `"latest"` for up, `"major"` for down.    |
+| Parameter   | Type             | Description                                                                                 |
+| ----------- | ---------------- | ------------------------------------------------------------------------------------------- |
+| `direction` | `"up" \| "down"` | Which plan to compute.                                                                      |
+| `target`    | `string`         | Same target vocabulary as `up` / `down`. Defaults to `"latest"` for up, `"major"` for down. |
 
 **Returns:** A [`Plan`](#plan--planstep) object with resolved `fromVersion`, `toVersion`, and an ordered list of `steps`.
 
@@ -325,13 +325,13 @@ new Version(
 )
 ```
 
-| Parameter | Type                | Description                                                                             |
-| --------- | ------------------- | --------------------------------------------------------------------------------------- |
-| `version` | `string`            | The version string (will be normalized to semver format).                               |
-| `up`      | `MigrateFn`         | The upgrade function.                                                                   |
-| `down`    | `MigrateFn \| null` | The downgrade function. `null`/omitted marks the version as irreversible (one-way).     |
-| `comment` | `string`            | Optional comment or description.                                                        |
-| `logger`  | `function`          | Optional logger function.                                                               |
+| Parameter | Type                | Description                                                                         |
+| --------- | ------------------- | ----------------------------------------------------------------------------------- |
+| `version` | `string`            | The version string (will be normalized to semver format).                           |
+| `up`      | `MigrateFn`         | The upgrade function.                                                               |
+| `down`    | `MigrateFn \| null` | The downgrade function. `null`/omitted marks the version as irreversible (one-way). |
+| `comment` | `string`            | Optional comment or description.                                                    |
+| `logger`  | `function`          | Optional logger function.                                                           |
 
 #### Properties
 
@@ -387,10 +387,10 @@ function normalizeSemver(version: string, assert?: true): string;
 function normalizeSemver(version: string, assert: false): string | undefined;
 ```
 
-| Parameter | Type      | Default | Description                                                                                  |
-| --------- | --------- | ------- | -------------------------------------------------------------------------------------------- |
-| `version` | `string`  | -       | The version string to normalize.                                                             |
-| `assert`  | `boolean` | `true`  | If `true` (default), throws `TypeError` for invalid input. If `false`, returns `undefined`.  |
+| Parameter | Type      | Default | Description                                                                                 |
+| --------- | --------- | ------- | ------------------------------------------------------------------------------------------- |
+| `version` | `string`  | -       | The version string to normalize.                                                            |
+| `assert`  | `boolean` | `true`  | If `true` (default), throws `TypeError` for invalid input. If `false`, returns `undefined`. |
 
 **Returns:** The normalized semver string (or `undefined` when `assert` is `false` and the input is invalid).
 

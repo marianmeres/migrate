@@ -11,9 +11,7 @@ import { compareSemver, normalizeSemver, parseSemver } from "@marianmeres/semver
 /** The constructor options for the Migrate class. */
 export interface MigrateOptions {
 	/** Active version getter (e.g., reader from database). If not provided, will read from memory. */
-	getActiveVersion: (
-		context: Record<string, unknown>,
-	) => Promise<string | undefined>;
+	getActiveVersion: (context: Record<string, unknown>) => Promise<string | undefined>;
 	/**
 	 * Active version setter (e.g., writer to database). If not provided, will keep in memory.
 	 * The returned value (if any) is ignored by the framework.
@@ -86,9 +84,7 @@ export class Version {
 		this.version = normalizeSemver(version);
 
 		// Parse semver segments and store them individually (so we can query them easily)
-		const { major, minor, patch, prerelease, build } = parseSemver(
-			this.version,
-		);
+		const { major, minor, patch, prerelease, build } = parseSemver(this.version);
 		this.major = major;
 		this.minor = minor;
 		this.patch = patch;
@@ -305,12 +301,8 @@ export class Migrate {
 		down?: MigrateFn | null,
 		comment: string | undefined = undefined,
 	): Version {
-		const _version = new Version(
-			version,
-			up,
-			down,
-			comment,
-			(...args) => this.#log(...args),
+		const _version = new Version(version, up, down, comment, (...args) =>
+			this.#log(...args),
 		);
 
 		// The internal collection does not assert, but we want to be strict here
@@ -450,12 +442,12 @@ export class Migrate {
 		fromVersionLabel?: string | undefined,
 	): Promise<
 		| {
-			toVersion: string | undefined;
-			toIndex: number;
-			fromVersion: string;
-			fromIndex: number;
-			isInitial: boolean;
-		}
+				toVersion: string | undefined;
+				toIndex: number;
+				fromVersion: string;
+				fromIndex: number;
+				isInitial: boolean;
+		  }
 		| undefined
 	> {
 		// No versions, nothing to do
@@ -499,25 +491,27 @@ export class Migrate {
 			toVersion ??= from.version;
 		} //
 		else if (target === "minor") {
-			toVersion = this.#versions.items
-				.filter(
-					(v) =>
-						v.major === from.major &&
-						compareSemver(v.version, from.version) > 0,
-				)
-				.map((v) => v.version)
-				.at(-1) ?? from.version;
+			toVersion =
+				this.#versions.items
+					.filter(
+						(v) =>
+							v.major === from.major &&
+							compareSemver(v.version, from.version) > 0,
+					)
+					.map((v) => v.version)
+					.at(-1) ?? from.version;
 		} //
 		else if (target === "patch") {
-			toVersion = this.#versions.items
-				.filter(
-					(v) =>
-						v.major === from.major &&
-						v.minor === from.minor &&
-						compareSemver(v.version, from.version) > 0,
-				)
-				.map((v) => v.version)
-				.at(-1) ?? from.version;
+			toVersion =
+				this.#versions.items
+					.filter(
+						(v) =>
+							v.major === from.major &&
+							v.minor === from.minor &&
+							compareSemver(v.version, from.version) > 0,
+					)
+					.map((v) => v.version)
+					.at(-1) ?? from.version;
 		} //
 		else {
 			toVersion = this.findVersion(target)?.version;
@@ -634,11 +628,11 @@ export class Migrate {
 		fromVersionLabel?: string,
 	): Promise<
 		| {
-			toVersion: string | undefined;
-			toIndex: number;
-			fromVersion: string;
-			fromIndex: number;
-		}
+				toVersion: string | undefined;
+				toIndex: number;
+				fromVersion: string;
+				fromIndex: number;
+		  }
 		| undefined
 	> {
 		// No versions, nothing to do
@@ -659,36 +653,39 @@ export class Migrate {
 		} //
 		else if (target === "major") {
 			// This will find the previous closest major, even if there are gaps
-			toVersion = this.#versions.items
-				.filter(
-					(v) =>
-						v.major < from.major &&
-						compareSemver(v.version, from.version) < 0,
-				)
-				.map((v) => v.version)
-				.at(-1) ?? from.version;
+			toVersion =
+				this.#versions.items
+					.filter(
+						(v) =>
+							v.major < from.major &&
+							compareSemver(v.version, from.version) < 0,
+					)
+					.map((v) => v.version)
+					.at(-1) ?? from.version;
 		} //
 		else if (target === "minor") {
-			toVersion = this.#versions.items
-				.filter(
-					(v) =>
-						v.major === from.major &&
-						v.minor < from.minor &&
-						compareSemver(v.version, from.version) < 0,
-				)
-				.map((v) => v.version)
-				.at(-1) ?? from.version;
+			toVersion =
+				this.#versions.items
+					.filter(
+						(v) =>
+							v.major === from.major &&
+							v.minor < from.minor &&
+							compareSemver(v.version, from.version) < 0,
+					)
+					.map((v) => v.version)
+					.at(-1) ?? from.version;
 		} //
 		else if (target === "patch") {
-			toVersion = this.#versions.items
-				.filter(
-					(v) =>
-						v.major === from.major &&
-						v.minor === from.minor &&
-						compareSemver(v.version, from.version) < 0,
-				)
-				.map((v) => v.version)
-				.at(-1) ?? from.version;
+			toVersion =
+				this.#versions.items
+					.filter(
+						(v) =>
+							v.major === from.major &&
+							v.minor === from.minor &&
+							compareSemver(v.version, from.version) < 0,
+					)
+					.map((v) => v.version)
+					.at(-1) ?? from.version;
 		} //
 		else {
 			toVersion = this.findVersion(target)?.version;
@@ -852,10 +849,7 @@ export class Migrate {
 	 * @throws {Error} If the target cannot be resolved, or for `down` when
 	 * there is no active version.
 	 */
-	async plan(
-		direction: "up" | "down",
-		target?: string,
-	): Promise<Plan> {
+	async plan(direction: "up" | "down", target?: string): Promise<Plan> {
 		if (direction === "up") {
 			const activeVersion = await this.getActiveVersion();
 			const meta = await this.__upMeta(target ?? "latest", activeVersion);

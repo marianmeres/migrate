@@ -12,7 +12,7 @@ test("semver normalize", () => {
 	// prettier-ignore
 	const toBeNormalizedVersions = {
 		"1": "1.0.0",
-		"v2": "2.0.0",
+		v2: "2.0.0",
 		"3.1": "3.1.0",
 		"4.2.1": "4.2.1",
 		"5.0.0-alpha": "5.0.0-alpha",
@@ -20,7 +20,7 @@ test("semver normalize", () => {
 		"7-rc.1": "7.0.0-rc.1",
 		"8.1.0+build.123": "8.1.0+build.123",
 		"9.2-alpha+build.456": "9.2.0-alpha+build.456",
-		"v10": "10.0.0",
+		v10: "10.0.0",
 		"11.0.0-beta.1+exp.sha.5114f85": "11.0.0-beta.1+exp.sha.5114f85",
 		"1-foo": "1.0.0-foo",
 		"20250501": "20250501.0.0",

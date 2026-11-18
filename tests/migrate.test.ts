@@ -5,14 +5,11 @@ import { Migrate, type MigrateOptions, Version } from "../src/migrate.ts";
 const clog = console.log;
 const noop = (_c: any) => Promise.resolve();
 
-function create_migrate(
-	options: Partial<MigrateOptions> = {},
-	versionsCount = 4,
-) {
+function create_migrate(options: Partial<MigrateOptions> = {}, versionsCount = 4) {
 	const log: any[] = ["clean"]; // just some marker
 
 	// simulate external version store
-	let version: string | undefined = undefined;
+	let version: string | undefined;
 
 	const createUp = (s: string) => () => {
 		// console.log(">>> pushing", s);
@@ -28,7 +25,7 @@ function create_migrate(
 
 	const migrate = new Migrate({
 		getActiveVersion: () => Promise.resolve(version),
-		setActiveVersion: (v: string | undefined, _ctx) => Promise.resolve(version = v),
+		setActiveVersion: (v: string | undefined, _ctx) => Promise.resolve((version = v)),
 		...options,
 	});
 
@@ -63,7 +60,13 @@ test("sanity check", async () => {
 	const m = new Migrate();
 	["v4", "v1", "v2", "3.5", "v3.5.0-foo"].forEach((v) => m.addVersion(v, noop, noop));
 
-	assert.deepStrictEqual(m.available, ["1.0.0", "2.0.0", "3.5.0-foo", "3.5.0", "4.0.0"]);
+	assert.deepStrictEqual(m.available, [
+		"1.0.0",
+		"2.0.0",
+		"3.5.0-foo",
+		"3.5.0",
+		"4.0.0",
+	]);
 
 	// current version must be undefined
 	const v = await m.getActiveVersion();
@@ -350,14 +353,16 @@ test("cold-start syncs internal active from external getter (H4)", async () => {
 
 test("concurrent up() calls are serialized (M1)", async () => {
 	const events: string[] = [];
-	const slow = (tag: string, ms = 5) => () =>
-		new Promise<void>((r) => {
-			events.push(`start-${tag}`);
-			setTimeout(() => {
-				events.push(`end-${tag}`);
-				r();
-			}, ms);
-		});
+	const slow =
+		(tag: string, ms = 5) =>
+		() =>
+			new Promise<void>((r) => {
+				events.push(`start-${tag}`);
+				setTimeout(() => {
+					events.push(`end-${tag}`);
+					r();
+				}, ms);
+			});
 
 	const m = new Migrate();
 	m.addVersion("1.0.0", slow("v1"), noop);
@@ -438,9 +443,13 @@ test("irreversible migrations (M5)", async () => {
 test("up() does not mutate state when migration throws", async () => {
 	const m = new Migrate();
 	m.addVersion("1.0.0", noop, noop);
-	m.addVersion("2.0.0", () => {
-		throw new Error("boom");
-	}, noop);
+	m.addVersion(
+		"2.0.0",
+		() => {
+			throw new Error("boom");
+		},
+		noop,
+	);
 	m.addVersion("3.0.0", noop, noop);
 
 	await assert.rejects(() => m.up("latest"));
@@ -458,7 +467,10 @@ test("plan() produces steps without mutating state", async () => {
 	assert.deepStrictEqual(upPlan.direction, "up");
 	assert.deepStrictEqual(upPlan.fromVersion, undefined);
 	assert.deepStrictEqual(upPlan.toVersion, "3.0.0");
-	assert.deepStrictEqual(upPlan.steps.map((s) => s.version), ["1.0.0", "2.0.0", "3.0.0"]);
+	assert.deepStrictEqual(
+		upPlan.steps.map((s) => s.version),
+		["1.0.0", "2.0.0", "3.0.0"],
+	);
 	// State is unchanged
 	assert.deepStrictEqual(await m.getActiveVersion(), undefined);
 
@@ -467,8 +479,14 @@ test("plan() produces steps without mutating state", async () => {
 	assert.deepStrictEqual(downPlan.direction, "down");
 	assert.deepStrictEqual(downPlan.fromVersion, "3.0.0");
 	assert.deepStrictEqual(downPlan.toVersion, "1.0.0");
-	assert.deepStrictEqual(downPlan.steps.map((s) => s.version), ["3.0.0", "2.0.0"]);
-	assert.deepStrictEqual(downPlan.steps.map((s) => s.activeAfter), ["2.0.0", "1.0.0"]);
+	assert.deepStrictEqual(
+		downPlan.steps.map((s) => s.version),
+		["3.0.0", "2.0.0"],
+	);
+	assert.deepStrictEqual(
+		downPlan.steps.map((s) => s.activeAfter),
+		["2.0.0", "1.0.0"],
+	);
 });
 
 test("status() reports pending migrations", async () => {

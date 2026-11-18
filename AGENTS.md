@@ -136,19 +136,19 @@ export function compareSemver(a: string, b: string): number
 
 ### Migrate Class Methods
 
-| Method                   | Signature                        | Returns                        | Description                                                |
-| ------------------------ | -------------------------------- | ------------------------------ | ---------------------------------------------------------- |
-| `addVersion`             | `(version, up, down?, comment?)` | `Version`                      | Register version (`down=null` → irreversible)              |
-| `getActiveVersion`       | `()`                             | `Promise<string \| undefined>` | Get current (syncs internal from external when configured) |
-| `setActiveVersion`       | `(version)`                      | `Promise<string \| undefined>` | Set current (validates against registry)                   |
-| `forceSetActiveVersion`  | `(version)`                      | `Promise<string \| undefined>` | Write marker without registry validation (recovery)        |
-| `up`                     | `(target?)`                      | `Promise<number>`              | Upgrade (serialized)                                       |
-| `down`                   | `(target?)`                      | `Promise<number>`              | Downgrade (serialized)                                     |
-| `uninstall`              | `()`                             | `Promise<number>`              | Remove all (serialized)                                    |
-| `plan`                   | `(direction, target?)`           | `Promise<Plan>`                | Dry-run: resolved steps without execution                  |
-| `status`                 | `()`                             | `Promise<Status>`              | Snapshot: active/latest/pending                            |
-| `indexOf`                | `(version)`                      | `number`                       | Find index                                                 |
-| `findVersion`            | `(version, assert?)`             | `Version \| undefined`         | Find instance                                              |
+| Method                  | Signature                        | Returns                        | Description                                                |
+| ----------------------- | -------------------------------- | ------------------------------ | ---------------------------------------------------------- |
+| `addVersion`            | `(version, up, down?, comment?)` | `Version`                      | Register version (`down=null` → irreversible)              |
+| `getActiveVersion`      | `()`                             | `Promise<string \| undefined>` | Get current (syncs internal from external when configured) |
+| `setActiveVersion`      | `(version)`                      | `Promise<string \| undefined>` | Set current (validates against registry)                   |
+| `forceSetActiveVersion` | `(version)`                      | `Promise<string \| undefined>` | Write marker without registry validation (recovery)        |
+| `up`                    | `(target?)`                      | `Promise<number>`              | Upgrade (serialized)                                       |
+| `down`                  | `(target?)`                      | `Promise<number>`              | Downgrade (serialized)                                     |
+| `uninstall`             | `()`                             | `Promise<number>`              | Remove all (serialized)                                    |
+| `plan`                  | `(direction, target?)`           | `Promise<Plan>`                | Dry-run: resolved steps without execution                  |
+| `status`                | `()`                             | `Promise<Status>`              | Snapshot: active/latest/pending                            |
+| `indexOf`               | `(version)`                      | `number`                       | Find index                                                 |
+| `findVersion`           | `(version, assert?)`             | `Version \| undefined`         | Find instance                                              |
 
 ### Migrate Class Properties
 
@@ -161,16 +161,16 @@ export function compareSemver(a: string, b: string): number
 
 ### Version Class Properties
 
-| Property       | Type                  | Description                                           |
-| -------------- | --------------------- | ----------------------------------------------------- |
-| `version`      | `string`              | Normalized version                                    |
-| `major`        | `number`              | Major segment                                         |
-| `minor`        | `number`              | Minor segment                                         |
-| `patch`        | `number`              | Patch segment                                         |
-| `prerelease`   | `string`              | Prerelease label                                      |
-| `build`        | `string`              | Build metadata                                        |
-| `comment`      | `string \| undefined` | Description                                           |
-| `isReversible` | `boolean`             | `false` if registered without a `down` worker         |
+| Property       | Type                  | Description                                   |
+| -------------- | --------------------- | --------------------------------------------- |
+| `version`      | `string`              | Normalized version                            |
+| `major`        | `number`              | Major segment                                 |
+| `minor`        | `number`              | Minor segment                                 |
+| `patch`        | `number`              | Patch segment                                 |
+| `prerelease`   | `string`              | Prerelease label                              |
+| `build`        | `string`              | Build metadata                                |
+| `comment`      | `string \| undefined` | Description                                   |
+| `isReversible` | `boolean`             | `false` if registered without a `down` worker |
 
 ## Dependencies
 

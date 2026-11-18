@@ -170,8 +170,8 @@ importers:
         specifier: ^1.4.2
         version: 1.4.2
       '@marianmeres/semver':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^1.0.1
+        version: 1.0.1
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.6.8
@@ -269,8 +269,8 @@ packages:
   '@marianmeres/searchable@2.10.0':
     resolution: {integrity: sha512-n8pTWvHTfY/+SrUFaUDKJIzojnC3UK8MdiNWGfV5TyN5OQ2yhnZ/LxHpZX5N9ksAsSv/KUuS9KyHUO+puP7ACA==}
 
-  '@marianmeres/semver@1.0.0':
-    resolution: {integrity: sha512-dBKaLE/MAgtGuZkKtSCF9hwhbPFlpMfrXOYHIr2oTxgbECoztgIBnufGLwlUYi7fOoq4HfKbsfUcMh3/k2Sefg==}
+  '@marianmeres/semver@1.0.1':
+    resolution: {integrity: sha512-dzFgO+1AnFwW6OeEqSjSi/vZ571mgo0BnTGmtAAw7Nm/rJ0mrGV0Za5aPxezycZKUlVTdKgoZbn78e/zz/7J5A==}
 
   '@types/node@26.6.6':
     resolution: {integrity: sha512-MzQj+8Kx3XI40OmUAE6Qoh58ZMNstNNMwn2nfd3qWsfe7nDNSqJNzes4njhz6AHwrSHOffSLwXU6yb474Q4aog==}
@@ -520,7 +520,7 @@ snapshots:
     dependencies:
       '@marianmeres/pubsub': 3.1.0
 
-  '@marianmeres/semver@1.0.0': {}
+  '@marianmeres/semver@1.0.1': {}
 
   '@types/node@26.6.6':
     dependencies:

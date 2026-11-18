@@ -1,4 +1,5 @@
-import { assertEquals, assertThrows } from "@std/assert";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 // Smoke-test the semver utilities re-exported from @marianmeres/semver through
 // this package's public entry point.
 import { compareSemver, normalizeSemver, parseSemver } from "../src/mod.ts";
@@ -7,7 +8,7 @@ function shuffle(array: any[]): any[] {
 	return array.toSorted(() => Math.random() - 0.5);
 }
 
-Deno.test("semver normalize", () => {
+test("semver normalize", () => {
 	// prettier-ignore
 	const toBeNormalizedVersions = {
 		"1": "1.0.0",
@@ -27,25 +28,25 @@ Deno.test("semver normalize", () => {
 	};
 
 	Object.entries(toBeNormalizedVersions).forEach(([version, normalized]) => {
-		assertEquals(normalizeSemver(version), normalized);
+		assert.deepStrictEqual(normalizeSemver(version), normalized);
 	});
 });
 
-Deno.test("semver normalize rejects non-semver characters", () => {
+test("semver normalize rejects non-semver characters", () => {
 	// prerelease/build must be in [0-9A-Za-z-.]
-	assertThrows(() => normalizeSemver("1.0.0-foo_bar"), TypeError);
-	assertThrows(() => normalizeSemver("1.0.0+build bar"), TypeError);
-	assertThrows(() => normalizeSemver("banana"), TypeError);
+	assert.throws(() => normalizeSemver("1.0.0-foo_bar"), TypeError);
+	assert.throws(() => normalizeSemver("1.0.0+build bar"), TypeError);
+	assert.throws(() => normalizeSemver("banana"), TypeError);
 
 	// assert=false returns undefined (not "0.0.0") for invalid input
-	assertEquals(normalizeSemver("banana", false), undefined);
-	assertEquals(normalizeSemver("1.0.0-foo_bar", false), undefined);
+	assert.deepStrictEqual(normalizeSemver("banana", false), undefined);
+	assert.deepStrictEqual(normalizeSemver("1.0.0-foo_bar", false), undefined);
 
 	// valid inputs pass through unchanged
-	assertEquals(normalizeSemver("1.0.0-foo", false), "1.0.0-foo");
+	assert.deepStrictEqual(normalizeSemver("1.0.0-foo", false), "1.0.0-foo");
 });
 
-Deno.test("semver parse", () => {
+test("semver parse", () => {
 	// prettier-ignore
 	const versions = {
 		"1.0.0": { major: 1, minor: 0, patch: 0, prerelease: "", build: "" },
@@ -86,11 +87,11 @@ Deno.test("semver parse", () => {
 	};
 
 	Object.entries(versions).forEach(([version, parsed]) => {
-		assertEquals(parseSemver(version), parsed);
+		assert.deepStrictEqual(parseSemver(version), parsed);
 	});
 });
 
-Deno.test("semver compare", () => {
+test("semver compare", () => {
 	const map: Record<string, number> = {
 		"1.0.0-alpha.1": 0,
 		"1.0.0-alpha.beta": 1,
@@ -107,5 +108,5 @@ Deno.test("semver compare", () => {
 
 	const sorted = shuffle(Object.keys(map)).toSorted(compareSemver);
 
-	assertEquals(sorted.map((v) => map[v]).join(","), "0,1,2,3,4,5,6,7,8,9,10");
+	assert.deepStrictEqual(sorted.map((v) => map[v]).join(","), "0,1,2,3,4,5,6,7,8,9,10");
 });

@@ -1,13 +1,12 @@
-import pg from "npm:pg";
-import dotenv from "npm:dotenv";
+import pg from "pg";
 
-dotenv.config();
-
+// The DB_* variables come from `.env` (see .env.example), loaded by Node's
+// `--env-file` flag; see the usage in db-migrate.ts.
 export const pool = new pg.Pool({
-	user: Deno.env.get("DB_USER"),
-	host: Deno.env.get("DB_HOST"),
-	database: Deno.env.get("DB_DATABASE"),
-	password: Deno.env.get("DB_PASSWORD"),
+	user: process.env.DB_USER,
+	host: process.env.DB_HOST,
+	database: process.env.DB_DATABASE,
+	password: process.env.DB_PASSWORD,
 });
 
 /** Internal DRY */
@@ -17,7 +16,7 @@ async function ensure_version_table(client: any) {
 			id serial primary key,
 			version varchar(255) null,
 			created_at timestamp with time zone not null default now()
-		);    
+		);
 	`);
 }
 

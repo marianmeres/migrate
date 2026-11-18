@@ -9,8 +9,9 @@
 - **Entry point:** `src/mod.ts`
 - **Core files:** `src/migrate.ts` (Migrate, Version classes)
 - **Semver utilities:** re-exported from the standalone `@marianmeres/semver` package (not vendored here)
-- **Tests:** `tests/*.test.ts` (19 tests total)
-- **Runtime:** Deno and Node.js
+- **Tests:** `tests/*.test.ts`, `node:test` + `node:assert/strict` (20 tests total)
+- **Stack:** erasable-only TypeScript, Node LTS (`.node-version`), pnpm, Biome. Published to
+  npm (`dist/` built by `tsc`) and JSR (`.ts` source via `jsr.json`)
 
 ## Key Concepts
 
@@ -22,9 +23,11 @@
 ## Common Commands
 
 ```bash
-deno task test       # Run tests
-deno task npm:build  # Build NPM package
-deno task publish    # Publish to JSR and NPM
+pnpm test              # Run tests on Node
+pnpm run test:deno     # Same suite on Deno, resolved as JSR consumers see it
+pnpm run ci            # typecheck + lint + test (the gate)
+pnpm run build         # dist/ for npm
+pnpm run rp            # Release (patch) and publish to npm and JSR
 ```
 
 ## Documentation

@@ -1,28 +1,36 @@
-import { walkSync } from "@std/fs";
-import { basename, dirname, join } from "@std/path";
-import { parseArgs } from "@std/cli";
+import { existsSync, readdirSync } from "node:fs";
+import { basename, join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { parseArgs } from "node:util";
 import { Migrate } from "../src/mod.ts";
 import { getActiveVersion, pool, setActiveVersion } from "./_db.ts";
 
-const _dirname = basename(dirname(import.meta.filename!));
-const _basename = basename(import.meta.filename!);
+const _dirname = basename(import.meta.dirname);
+const _basename = basename(import.meta.filename);
 
 /** Main runner */
 export async function main() {
-	const flags = parseArgs(Deno.args, {
-		boolean: ["help", "h", "up", "down", "verbose", "uninstall"],
-		string: ["target"],
+	const { values: flags } = parseArgs({
+		args: process.argv.slice(2),
+		options: {
+			help: { type: "boolean", short: "h" },
+			up: { type: "boolean" },
+			down: { type: "boolean" },
+			verbose: { type: "boolean" },
+			uninstall: { type: "boolean" },
+			target: { type: "string" },
+		},
 	});
 
-	const showHelp = flags.help || flags.h;
+	const showHelp = flags.help;
 	const updown = (flags.up || flags.down) && flags.target;
 	const uninstall = flags.uninstall;
 
 	if (showHelp || !(updown || uninstall)) {
 		return console.log(
 			`\nUsage:
-    deno run -A ${_dirname}/${_basename} [--up|--down] --target=target [--verbose]
-    deno run -A ${_dirname}/${_basename} --uninstall [--verbose]
+    node --env-file=.env ${_dirname}/${_basename} [--up|--down] --target=target [--verbose]
+    node --env-file=.env ${_dirname}/${_basename} --uninstall [--verbose]
 `,
 		);
 	}
@@ -40,7 +48,7 @@ export async function main() {
 	await add_versions(migrate);
 
 	//
-	let res;
+	let res: number;
 	if (uninstall) {
 		res = await migrate.uninstall();
 	} else {
@@ -50,20 +58,20 @@ export async function main() {
 	console.log("OK", res);
 }
 
-/** Internal dir walker */
-async function add_versions(
-	migrate: Migrate,
-	dir = dirname(import.meta.filename!),
-) {
-	for (
-		const dirEntry of walkSync(dir, {
-			maxDepth: 2,
-			match: [/\/v?\d+\.\d+.\d+(-.+)?\/migrate\.ts$/],
-		})
-	) {
-		const version = basename(dirname(dirEntry.path));
+/** Internal dir walker: every `<semver>/migrate.ts` next to this file is a version */
+async function add_versions(migrate: Migrate, dir = import.meta.dirname) {
+	for (const dirEntry of readdirSync(dir, { withFileTypes: true })) {
+		const version = dirEntry.name;
+		const path = join(dir, version, "migrate.ts");
+		if (
+			!dirEntry.isDirectory() ||
+			!/^v?\d+\.\d+\.\d+(-.+)?$/.test(version) ||
+			!existsSync(path)
+		) {
+			continue;
+		}
 		try {
-			const { up, down } = await import(dirEntry.path);
+			const { up, down } = await import(pathToFileURL(path).href);
 
 			if (typeof up !== "function" || typeof down !== "function") {
 				throw new Error(
@@ -83,9 +91,9 @@ async function add_versions(
 if (import.meta.main) {
 	try {
 		await main();
-		Deno.exit(0);
+		process.exit(0);
 	} catch (e) {
 		console.error(e);
-		Deno.exit(1);
+		process.exit(1);
 	}
 }

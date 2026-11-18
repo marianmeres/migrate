@@ -6,13 +6,19 @@ Machine-readable comprehensive documentation for AI agents and LLMs.
 
 ```yaml
 name: "@marianmeres/migrate"
-version: "1.3.0"
+version: "1.3.1" # source of truth: package.json
 author: "Marian Meres"
 license: "MIT"
 repository: "https://github.com/marianmeres/migrate"
 npm: "https://www.npmjs.com/package/@marianmeres/migrate"
 jsr: "https://jsr.io/@marianmeres/migrate"
-runtimes: ["deno", "node"]
+module_system: "ESM"
+entry_point: "src/mod.ts"
+stack: "TypeScript (erasable-only), Node LTS (.node-version), pnpm, node:test, Biome"
+registries:
+  npm: "dist/ built by tsc from src/ (gitignored), manifest package.json"
+  jsr: "the .ts source, manifest jsr.json (no version; publish passes --set-version)"
+runtime_support: "pure TypeScript, no runtime APIs: browser, Node and Deno alike"
 ```
 
 ## Purpose
@@ -85,17 +91,23 @@ src/
 # Semver utilities (normalizeSemver, parseSemver, compareSemver) live in the
 # standalone @marianmeres/semver package and are re-exported from mod.ts (DRY).
 
-tests/
-  migrate.test.ts # Migration tests (14 tests)
+tests/            # node:test + node:assert/strict; import ../src, never dist
+  migrate.test.ts # Migration tests (15 tests)
   semver.test.ts  # Smoke test of the re-exported semver surface (4 tests)
   example.test.ts # Progress tracking example (1 test)
 
-example/
-  db-migrate.ts   # PostgreSQL CLI example
-  _db.ts          # Database helpers
+example/          # Node + pg; run with `node --env-file=.env example/db-migrate.ts ...`
+  db-migrate.ts   # PostgreSQL CLI example (node:util parseArgs, node:fs walk)
+  _db.ts          # Database helpers (pg Pool from DB_* env, see .env.example)
   1.0.0/migrate.ts
   1.1.0/migrate.ts
   2.0.0/migrate.ts
+
+package.json        # manifest of record: version, npm exports, dependencies, scripts
+jsr.json            # JSR manifest: exports, jsr: import map, publish.include (no version)
+tsconfig.json       # type gate: src + tests + example, noEmit
+tsconfig.build.json # src -> dist (ESM + .d.ts) for npm
+biome.json          # format + lint (recommended, two test-only rules warn-listed)
 ```
 
 ## Public API Summary
@@ -167,13 +179,15 @@ runtime:
     - "@marianmeres/item-collection" # Collection management
     - "@marianmeres/semver" # Semver parse/normalize/compare utilities
 
+# npm: package.json "dependencies"; JSR consumers resolve both through jsr.json's
+# imports to jsr:@marianmeres/*, so a Deno graph holds one copy of each
+
 dev_only:
-    - "@std/assert" # Testing
-    - "@std/cli" # CLI parsing
-    - "@std/fs" # File system
-    - "@std/path" # Path utilities
+    - "typescript" # typecheck and the dist/ build
+    - "@biomejs/biome" # format and lint
+    - "@types/node" # Node types for tests and the example
     - "pg" # PostgreSQL (example)
-    - "dotenv" # Environment (example)
+    - "@types/pg" # pg types (example)
 ```
 
 ## Common Patterns
@@ -236,23 +250,37 @@ await app.uninstall(); // Remove all
 | Irreversible version reached | `"is irreversible (no down worker registered)"` |
 | Invalid semver input         | `TypeError: Invalid version "..."`              |
 
-## Testing
+## Commands
 
-```bash
-deno task test        # Run tests
-deno task test:watch  # Watch mode
+```yaml
+install: "pnpm install"
+test: "pnpm test" # node --test; watch: pnpm run test:watch
+test_deno: "pnpm run test:deno" # same suite on Deno, resolved as JSR consumers see it
+typecheck: "pnpm run typecheck" # tsc --noEmit: Node strips types and never checks them
+lint: "pnpm run lint" # format with: pnpm run format
+ci: "pnpm run ci" # typecheck + lint + test, what CI runs
+build: "pnpm run build" # tsc -p tsconfig.build.json -> dist/
+jsr_dry_run: "pnpm run jsr:check"
+release_and_publish: "pnpm run rp" # minor: pnpm run rpm; publishes to npm and JSR
 ```
 
-## Build
+## Tooling Conventions
 
-```bash
-deno task npm:build   # Build NPM package
-deno task publish     # Publish to JSR and NPM
-```
+- Node runs the `.ts` source directly (type stripping) and never type-checks it:
+  `pnpm run typecheck` is the type gate
+- Erasable-only TS: no `enum`, `namespace` or constructor parameter properties; `import type`
+  for types; `.ts` extensions in relative imports
+- `Version.comment` and `Migrate.context` are declared fields assigned first in their
+  constructors, kept first in their classes so the emitted `dist/` matches earlier releases
+- No `Deno.*` / `Bun.*` APIs and no `jsr:` / `npm:` specifiers in `src/`, `tests/` or `example/`
+- `noUncheckedIndexedAccess` is off: the move off Deno changed no logic
+- Never run a script named `publish` (npm lifecycle hook); publishing is `publish:all` /
+  `publish:jsr`, via `rp` / `rpm`
 
 ## Code Style
 
-- Deno formatter: tabs, 90 char line width
+- Biome: tabs, 4 wide, 90 columns, double quotes; manifests (`package.json`, `jsr.json`)
+  at 2 spaces
 - TypeScript with strict settings
 - Private fields use `#` prefix
 - JSDoc on all public APIs

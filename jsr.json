@@ -1,0 +1,23 @@
+{
+  "name": "@marianmeres/migrate",
+  "exports": "./src/mod.ts",
+  "imports": {
+    "@marianmeres/item-collection": "jsr:@marianmeres/item-collection@^1.4.2",
+    "@marianmeres/semver": "jsr:@marianmeres/semver@^1.0.0"
+  },
+  "publish": {
+    "include": [
+      "src/**/*.ts",
+      "tests/**/*.ts",
+      "example/**/*.ts",
+      "README.md",
+      "API.md",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "LICENSE",
+      ".editorconfig",
+      ".env.example",
+      "mcp-include.txt"
+    ]
+  }
+}

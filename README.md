@@ -23,11 +23,11 @@ the relevant `up`'s or `down`'s).
 ## Installation
 
 ```sh
-deno add jsr:@marianmeres/migrate
+npm install @marianmeres/migrate
 ```
 
 ```sh
-npm install @marianmeres/migrate
+deno add jsr:@marianmeres/migrate
 ```
 
 ## Usage
@@ -73,12 +73,15 @@ For complete API reference including all methods, types, and semver utilities, s
 
 ## DB migrate implementation example
 
-See [deno script example](./example/). Can be run as, for example:
+See the [PostgreSQL example](./example/): every `example/<semver>/migrate.ts` exports an
+`up` and a `down`, and `example/db-migrate.ts` registers them and runs the requested
+migration. After `pnpm install`, copy `.env.example` to `.env`, fill in the connection,
+and run it with Node:
 
 ```sh
-deno run example/db-migrate.ts --up --target=latest
-deno run example/db-migrate.ts --down --target=1.1.0
-deno run example/db-migrate.ts --uninstall
+node --env-file=.env example/db-migrate.ts --up --target=latest
+node --env-file=.env example/db-migrate.ts --down --target=1.1.0
+node --env-file=.env example/db-migrate.ts --uninstall
 ```
 
 ## Basic progress tracking (pseudo) example
@@ -154,6 +157,24 @@ await app.uninstall();
 assertEquals(await app.getActiveVersion(), undefined);
 assertEquals(db, []);
 ```
+
+## Development
+
+Node LTS (`.node-version`), pnpm, Biome, `node:test`. The source is erasable-only
+TypeScript that Node runs directly; `dist/` is built only for publishing to npm. JSR is
+served the `.ts` source (`jsr.json`).
+
+| Command                             | Does                                                     |
+| ----------------------------------- | -------------------------------------------------------- |
+| `pnpm install`                      | installs the dev tooling                                 |
+| `pnpm test` / `pnpm run test:watch` | `node --test` over `tests/**/*.test.ts`                  |
+| `pnpm run test:deno`                | the same suite on Deno, resolved as JSR consumers see it |
+| `pnpm run typecheck`                | `tsc --noEmit` over `src`, `tests` and `example`         |
+| `pnpm run lint` / `pnpm run format` | `biome check .` read-only / with `--write`               |
+| `pnpm run ci`                       | typecheck + lint + test, what CI runs                    |
+| `pnpm run build`                    | `tsc -p tsconfig.build.json` → `dist/`                   |
+| `pnpm run jsr:check`                | `deno publish --dry-run` with the `package.json` version |
+| `pnpm run rp` / `pnpm run rpm`      | patch / minor release, then publish to npm and JSR       |
 
 ## Package Identity
 

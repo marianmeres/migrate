@@ -35,6 +35,7 @@ export type MigrateFn = (context?: Record<string, unknown>) => void | Promise<vo
 
 /** Single version abstraction. */
 export class Version {
+	public readonly comment: string | undefined;
 	/** The semver normalized version form. */
 	public readonly version: string;
 	/** Semver major segment parsed */
@@ -70,9 +71,10 @@ export class Version {
 		version: string,
 		up: MigrateFn,
 		down?: MigrateFn | null,
-		public readonly comment: string | undefined = undefined,
+		comment: string | undefined = undefined,
 		logger?: (...args: unknown[]) => void,
 	) {
+		this.comment = comment;
 		if (!version || typeof up !== "function") {
 			throw new TypeError("Invalid version parameters");
 		}
@@ -167,6 +169,8 @@ export interface Status {
  * The main migration manager that handles version tracking and migration execution.
  */
 export class Migrate {
+	/** Arbitrary context object passed to each up/down migration. */
+	public context: Record<string, any>;
 	/** Internal sort function (wrapper around compareSemver). */
 	#compareFn = (a: Version, b: Version) => compareSemver(a.version, b.version);
 
@@ -203,8 +207,9 @@ export class Migrate {
 	constructor(
 		options: Partial<MigrateOptions> = {},
 		/** Arbitrary context object passed to each up/down migration. */
-		public context: Record<string, any> = {},
+		context: Record<string, any> = {},
 	) {
+		this.context = context;
 		this.#options = { ...this.#options, ...options };
 	}
 

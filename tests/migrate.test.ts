@@ -494,3 +494,33 @@ test("status() reports pending migrations", async () => {
 	assert.deepStrictEqual(s.isAtLatest, true);
 	assert.deepStrictEqual(s.pending, []);
 });
+
+// `Version.comment` and `Migrate.context` were constructor parameter properties, which
+// Node's type stripping refuses; they are now declared fields assigned in the
+// constructor. Pins that both stay public own properties, in the published key order,
+// and that `context` is the object given (or a fresh `{}` by default).
+test("comment and context stay public own properties", () => {
+	const v = new Version("1.2.3", noop, noop, "foo");
+	assert.strictEqual(v.comment, "foo");
+	assert.deepStrictEqual(Object.keys(v), [
+		"comment",
+		"version",
+		"major",
+		"minor",
+		"patch",
+		"prerelease",
+		"build",
+	]);
+	assert.ok(Object.hasOwn(new Version("1", noop), "comment"));
+	assert.strictEqual(new Version("1", noop).comment, undefined);
+
+	const ctx = { pool: 1 };
+	const m = new Migrate({}, ctx);
+	assert.strictEqual(m.context, ctx);
+	assert.deepStrictEqual(Object.keys(m), ["context"]);
+
+	const a = new Migrate();
+	const b = new Migrate();
+	assert.deepStrictEqual(a.context, {});
+	assert.notStrictEqual(a.context, b.context);
+});

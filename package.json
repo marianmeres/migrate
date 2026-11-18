@@ -1,6 +1,6 @@
 {
   "name": "@marianmeres/migrate",
-  "version": "1.3.2",
+  "version": "2.0.0",
   "description": "A general-purpose extensible versioning framework for managing incremental, bi-directional changes: db migrations, undo/redo, progress tracking. Semver-labeled up/down pairs with greedy up, conservative down, dry-run plans and serialized runs. Ships PostgreSQL and SQLite helpers: a lock per run, a transaction per step.",
   "license": "MIT",
   "author": "Marian Meres",

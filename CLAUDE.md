@@ -8,8 +8,12 @@
 
 - **Entry point:** `src/mod.ts`
 - **Core files:** `src/migrate.ts` (Migrate, Version classes)
+- **Database helpers:** `src/pg.ts` (`createPgMigrate`, subpath `./pg`), `src/sqlite.ts`
+  (`createSqliteMigrate`, subpath `./sqlite`, for `node:sqlite` only). Neither adds a
+  dependency
 - **Semver utilities:** re-exported from the standalone `@marianmeres/semver` package (not vendored here)
-- **Tests:** `tests/*.test.ts`, `node:test` + `node:assert/strict` (20 tests total)
+- **Tests:** `tests/*.test.ts`, `node:test` + `node:assert/strict` (48 tests total; the 5 Postgres
+  server tests need `DB_*` in `.env`, see `.env.example`)
 - **Stack:** erasable-only TypeScript, Node LTS (`.node-version`), pnpm, Biome. Published to
   npm (`dist/` built by `tsc`) and JSR (`.ts` source via `jsr.json`)
 
@@ -19,11 +23,16 @@
 - Each version has `up()` and `down()` migration functions
 - `up()` is greedy (goes as far as possible), `down()` is conservative (one step)
 - `uninstall()` removes everything including initial version
+- `up()` / `down()` / `uninstall()` execute exactly what `plan()` returns; a down path across an
+  irreversible version is refused before any step runs
+- Optional hooks: `wrapStep` (a transaction around worker + marker write), `wrapRun` (a lock
+  around a whole run)
+- The context type (`TContext`) is inferred from the constructor argument
 
 ## Common Commands
 
 ```bash
-pnpm test              # Run tests on Node
+pnpm test              # Run tests on Node (reads .env when present)
 pnpm run test:deno     # Same suite on Deno, resolved as JSR consumers see it
 pnpm run ci            # typecheck + lint + test (the gate)
 pnpm run build         # dist/ for npm

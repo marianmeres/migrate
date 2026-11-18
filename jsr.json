@@ -1,6 +1,10 @@
 {
   "name": "@marianmeres/migrate",
-  "exports": "./src/mod.ts",
+  "exports": {
+    ".": "./src/mod.ts",
+    "./pg": "./src/pg.ts",
+    "./sqlite": "./src/sqlite.ts"
+  },
   "imports": {
     "@marianmeres/item-collection": "jsr:@marianmeres/item-collection@^1.4.2",
     "@marianmeres/semver": "jsr:@marianmeres/semver@^1.0.0"

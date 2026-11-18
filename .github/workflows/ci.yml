@@ -10,6 +10,22 @@ jobs:
   # Nothing runs on Deno or Bun.
   node:
     runs-on: ubuntu-latest
+    # tests/pg.test.ts runs against a real server: a throwaway one, on the major the
+    # hosts run. The runner assigns its port.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: migrate
+          POSTGRES_PASSWORD: migrate
+          POSTGRES_DB: migrate_test
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U migrate -d migrate_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
       # pnpm version is read from package.json "packageManager".
@@ -19,4 +35,12 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # With CI set (the runner sets it) the Postgres tests fail, instead of being
+      # skipped, when these variables are missing.
       - run: pnpm run ci
+        env:
+          DB_HOST: localhost
+          DB_PORT: ${{ job.services.postgres.ports['5432'] }}
+          DB_USER: migrate
+          DB_PASSWORD: migrate
+          DB_DATABASE: migrate_test

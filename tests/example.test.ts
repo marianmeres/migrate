@@ -1,79 +1,76 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Migrate, Version } from "../src/mod.ts";
+import { Migrate } from "../src/mod.ts";
 
-const clog = console.log;
+// The README's "Undo / redo example", statement by statement, with its comments as
+// assertions. Keep the two in step.
+test("undo / redo example", async () => {
+	const doc: string[] = []; // the state being edited
+	const history = new Migrate();
+	let sequence = 0;
 
-test("progress tracking example", async () => {
-	// external db example
-	const db: any[] = [];
-	let sequence = 1;
+	// Version 0 is the empty document, so that the first action can be undone too
+	await history.setActiveVersion(
+		history.addVersion(
+			"0",
+			() => {},
+			() => {},
+		),
+	);
 
-	//
-	const app = new Migrate();
+	/** Records an action as the next version, then applies it. */
+	async function act(up: () => unknown, down: () => unknown) {
+		// A new action discards what was undone before it: it can no longer be redone
+		for (const undone of (await history.status()).pending) {
+			await history.removeVersion(undone);
+		}
+		history.addVersion(`${++sequence}`, up, down);
+		await history.up();
+	}
 
-	// creates wrapper which will do some work,
-	// and also internally saves a progress step version
-	const work = async (thing: string) => {
-		// "up" (do the work)
-		const up = () => {
-			db.push(thing);
-		};
+	const undo = () => history.down(); // one version back
+	const redo = () => history.up("major"); // one version forward
 
-		// "down" (revert the work)
-		const down = () => {
-			db.pop();
-		};
+	const add = (word: string) =>
+		act(
+			() => doc.push(word),
+			() => doc.pop(),
+		);
 
-		// do the thing now
-		await up();
+	await add("hey");
+	await add("ho");
+	await add("lets");
+	await add("go");
+	assert.deepStrictEqual(doc, ["hey", "ho", "lets", "go"]);
+	assert.deepStrictEqual(await history.getActiveVersion(), "4.0.0");
 
-		// add the version into internal stack
-		const ver = app.addVersion(`${sequence++}`, up, down);
+	await undo();
+	await undo();
+	assert.deepStrictEqual(doc, ["hey", "ho"]);
 
-		// mark current version as active
-		await app.setActiveVersion(ver);
-	};
+	await redo();
+	assert.deepStrictEqual(doc, ["hey", "ho", "lets"]);
 
-	// first action marks the "initial" version (1.0.0)
-	await work("hey"); // 1.0.0
-	await work("ho"); // 2.0.0
-	await work("lets"); // 3.0.0
-	await work("go"); // 4.0.0
+	await add("rock");
+	assert.deepStrictEqual(doc, ["hey", "ho", "lets", "rock"]);
+	// "go" is gone
+	assert.deepStrictEqual(history.available, [
+		"0.0.0",
+		"1.0.0",
+		"2.0.0",
+		"3.0.0",
+		"5.0.0",
+	]);
 
-	// check if the work was done
-	assert.deepStrictEqual(db, ["hey", "ho", "lets", "go"]);
-	assert.deepStrictEqual(await app.getActiveVersion(), "4.0.0");
+	assert.deepStrictEqual(await redo(), 0); // nothing to redo
 
-	// undo all steps in sequence (one step at a time)
-	// the below could be written as: `await progress.down("initial");`
-	let result = 0;
-	do {
-		result = await app.down(); // one major step down
-	} while (result);
+	await history.down("initial");
+	assert.deepStrictEqual(doc, []);
+	assert.deepStrictEqual(await history.getActiveVersion(), "0.0.0");
 
-	// we must be at the initial state (v1)
-	assert.deepStrictEqual(db, ["hey"]);
-	assert.deepStrictEqual(await app.getActiveVersion(), "1.0.0");
+	assert.deepStrictEqual(await undo(), 0); // nothing to undo
 
-	// now redo all steps in one call (internally still will do step-by-step)
-	await app.up("latest");
-	assert.deepStrictEqual(db, ["hey", "ho", "lets", "go"]);
-
-	// now go back to second version (step)
-	await app.down("v2"); // "v2" is semver normalized to "2.0.0"
-	assert.deepStrictEqual(await app.getActiveVersion(), "2.0.0");
-	assert.deepStrictEqual(db, ["hey", "ho"]);
-
-	// now try to go to some high version which does not exist
-	await assert.rejects(() => app.up("12.34.56"), /Unable to find/);
-
-	// we are still in the last version
-	assert.deepStrictEqual(await app.getActiveVersion(), "2.0.0");
-	assert.deepStrictEqual(db, ["hey", "ho"]);
-
-	// now remove altogether
-	await app.uninstall();
-	assert.deepStrictEqual(await app.getActiveVersion(), undefined);
-	assert.deepStrictEqual(db, []);
+	await history.up();
+	assert.deepStrictEqual(doc, ["hey", "ho", "lets", "rock"]);
+	assert.deepStrictEqual(await history.getActiveVersion(), "5.0.0");
 });

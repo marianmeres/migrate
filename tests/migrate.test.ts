@@ -430,7 +430,7 @@ test("irreversible migrations (M5)", async () => {
 	await m.down(); // major: from 3 to 2
 	assert.deepStrictEqual(await m.getActiveVersion(), "2.0.0");
 
-	// Further down-walk tries to call v2.down() which throws
+	// Further down is refused: v2 has no down worker
 	await assert.rejects(() => m.down("initial"));
 
 	// And uninstall on a one-way initial fails loudly too
@@ -455,6 +455,18 @@ test("up() does not mutate state when migration throws", async () => {
 	await assert.rejects(() => m.up("latest"));
 	// We got to 1.0.0, failed on 2.0.0 - active should be 1.0.0, not 2.0.0
 	assert.deepStrictEqual(await m.getActiveVersion(), "1.0.0");
+});
+
+test("an unknown target is refused, and nothing runs", async () => {
+	const { migrate, getLog } = create_migrate();
+	await migrate.up("v2");
+	assert.deepStrictEqual(getLog(), ["clean", "a", "b"]);
+
+	await assert.rejects(() => migrate.up("12.34.56"), /Unable to find matching up/);
+	await assert.rejects(() => migrate.down("0.0.1"), /Unable to find matching down/);
+
+	assert.deepStrictEqual(await migrate.getActiveVersion(), "2.0.0");
+	assert.deepStrictEqual(getLog(), ["clean", "a", "b"]);
 });
 
 test("plan() produces steps without mutating state", async () => {
@@ -541,4 +553,439 @@ test("comment and context stay public own properties", () => {
 	const b = new Migrate();
 	assert.deepStrictEqual(a.context, {});
 	assert.notStrictEqual(a.context, b.context);
+});
+
+test("down() refuses a path across an irreversible version before running any of it", async () => {
+	const ran: string[] = [];
+	const m = new Migrate();
+	m.addVersion("1", noop, () => void ran.push("down1"));
+	m.addVersion("2", noop, null);
+	m.addVersion("3", noop, () => void ran.push("down3"));
+	m.addVersion("4", noop, () => void ran.push("down4"));
+	await m.up();
+
+	// the plan shows it upfront
+	const plan = await m.plan("down", "initial");
+	assert.deepStrictEqual(
+		plan.steps.map((s) => [s.version, s.reversible]),
+		[
+			["4.0.0", true],
+			["3.0.0", true],
+			["2.0.0", false],
+		],
+	);
+
+	// nothing above the irreversible version is rolled back either
+	await assert.rejects(() => m.down("initial"), /version "2\.0\.0" is irreversible/);
+	assert.deepStrictEqual(ran, []);
+	assert.deepStrictEqual(await m.getActiveVersion(), "4.0.0");
+
+	// a path that stops at the irreversible version does not need its `down`
+	assert.deepStrictEqual(await m.down("2"), 2);
+	assert.deepStrictEqual(ran, ["down4", "down3"]);
+	assert.deepStrictEqual(await m.getActiveVersion(), "2.0.0");
+});
+
+test("uninstall() is planned, and refused upfront when the path is irreversible", async () => {
+	const ran: string[] = [];
+	const down = (tag: string) => () => void ran.push(tag);
+
+	const m = new Migrate();
+	m.addVersion("1", noop, down("down1"));
+	m.addVersion("2", noop, down("down2"));
+	m.addVersion("3", noop, down("down3"));
+
+	// nothing installed, nothing to uninstall
+	assert.deepStrictEqual(await m.plan("uninstall"), {
+		direction: "down",
+		fromVersion: undefined,
+		toVersion: undefined,
+		steps: [],
+	});
+	assert.deepStrictEqual(await m.uninstall(), 0);
+
+	// unlike down("initial"), the plan includes the initial version's own `down`
+	await m.up();
+	assert.deepStrictEqual(await m.plan("uninstall"), {
+		direction: "down",
+		fromVersion: "3.0.0",
+		toVersion: undefined,
+		steps: [
+			{ version: "3.0.0", activeAfter: "2.0.0", reversible: true },
+			{ version: "2.0.0", activeAfter: "1.0.0", reversible: true },
+			{ version: "1.0.0", activeAfter: undefined, reversible: true },
+		],
+	});
+	assert.deepStrictEqual(await m.uninstall(), 3);
+	assert.deepStrictEqual(ran, ["down3", "down2", "down1"]);
+	assert.deepStrictEqual(await m.getActiveVersion(), undefined);
+
+	// a one-way initial version: refused before the versions above it are touched
+	ran.length = 0;
+	const m2 = new Migrate();
+	m2.addVersion("1", noop, null);
+	m2.addVersion("2", noop, down("down2"));
+	await m2.up();
+	await assert.rejects(() => m2.uninstall(), /version "1\.0\.0" is irreversible/);
+	assert.deepStrictEqual(ran, []);
+	assert.deepStrictEqual(await m2.getActiveVersion(), "2.0.0");
+});
+
+test("wrapStep wraps the worker and the marker write of every step", async () => {
+	const events: string[] = [];
+	let stored: string | undefined;
+
+	const m = new Migrate({
+		getActiveVersion: () => stored,
+		setActiveVersion: (v) => {
+			events.push(`mark:${v}`);
+			stored = v;
+		},
+		wrapStep: async (run, step) => {
+			events.push(`begin:${step.direction}:${step.version}`);
+			await run();
+			events.push(`commit:${step.activeAfter}`);
+		},
+	});
+	m.addVersion(
+		"1",
+		() => void events.push("up1"),
+		() => void events.push("down1"),
+	);
+	m.addVersion(
+		"2",
+		() => void events.push("up2"),
+		() => void events.push("down2"),
+	);
+
+	assert.deepStrictEqual(await m.up(), 2);
+	assert.deepStrictEqual(events, [
+		"begin:up:1.0.0",
+		"up1",
+		"mark:1.0.0",
+		"commit:1.0.0",
+		"begin:up:2.0.0",
+		"up2",
+		"mark:2.0.0",
+		"commit:2.0.0",
+	]);
+
+	events.length = 0;
+	assert.deepStrictEqual(await m.uninstall(), 2);
+	assert.deepStrictEqual(events, [
+		"begin:down:2.0.0",
+		"down2",
+		"mark:1.0.0",
+		"commit:1.0.0",
+		"begin:down:1.0.0",
+		"down1",
+		"mark:undefined",
+		"commit:undefined",
+	]);
+});
+
+test("wrapStep cannot turn a failed or skipped step into a success", async () => {
+	const boom = () => {
+		throw new Error("boom");
+	};
+
+	// the hook sees the failure (so it can roll back), and swallowing it changes nothing
+	let rolledBack = 0;
+	const swallowing = new Migrate({
+		wrapStep: async (run) => {
+			try {
+				await run();
+			} catch {
+				rolledBack++;
+			}
+		},
+	});
+	swallowing.addVersion("1", noop, noop);
+	swallowing.addVersion("2", boom, noop);
+	await assert.rejects(
+		() => swallowing.up(),
+		/The upgrade to version "2\.0\.0" failed/,
+	);
+	assert.deepStrictEqual(rolledBack, 1);
+	assert.deepStrictEqual(await swallowing.getActiveVersion(), "1.0.0");
+
+	// a hook that never runs the step
+	let ran = 0;
+	const skipping = new Migrate({ wrapStep: async () => {} });
+	skipping.addVersion("1", () => void ran++, noop);
+	await assert.rejects(() => skipping.up(), /without calling and awaiting run\(\)/);
+	assert.deepStrictEqual(ran, 0);
+	assert.deepStrictEqual(await skipping.getActiveVersion(), undefined);
+
+	// a hook that runs it twice
+	const twice = new Migrate({
+		wrapStep: async (run) => {
+			await run();
+			await run();
+		},
+	});
+	twice.addVersion("1", () => void ran++, noop);
+	await assert.rejects(() => twice.up(), /must call run\(\) exactly once/);
+	assert.deepStrictEqual(ran, 1);
+});
+
+test("a step fails when wrapStep throws after run()", async () => {
+	const commitError = new Error("commit failed");
+	const m = new Migrate({
+		wrapStep: async (run) => {
+			await run();
+			throw commitError;
+		},
+	});
+	m.addVersion("1", noop, noop);
+
+	await assert.rejects(
+		() => m.up(),
+		(e: Error) => {
+			assert.match(
+				e.message,
+				/The "wrapStep" hook failed after the up step of version "1\.0\.0" completed/,
+			);
+			assert.strictEqual(e.cause, commitError);
+			return true;
+		},
+	);
+
+	// the in-memory marker is back where it was before the step
+	assert.deepStrictEqual(await m.getActiveVersion(), undefined);
+});
+
+test("wrapRun wraps the whole operation, reading the active version included", async () => {
+	const events: string[] = [];
+	let stored: string | undefined;
+
+	const m = new Migrate({
+		getActiveVersion: () => {
+			events.push("read");
+			return stored;
+		},
+		setActiveVersion: (v) => {
+			stored = v;
+		},
+		wrapRun: async (run, info) => {
+			events.push(`lock:${info.operation}:${info.target}`);
+			await run();
+			events.push("unlock");
+		},
+	});
+	m.addVersion("1", noop, noop);
+	m.addVersion("2", noop, noop);
+
+	assert.deepStrictEqual(await m.up(), 2);
+	assert.deepStrictEqual(events.at(0), "lock:up:latest");
+	assert.deepStrictEqual(events.at(-1), "unlock");
+	assert.ok(events.includes("read"));
+	assert.deepStrictEqual(events.filter((e) => e !== "read").length, 2);
+
+	events.length = 0;
+	assert.deepStrictEqual(await m.down(), 1);
+	assert.deepStrictEqual(events.at(0), "lock:down:major");
+	assert.deepStrictEqual(events.at(-1), "unlock");
+
+	events.length = 0;
+	assert.deepStrictEqual(await m.uninstall(), 1);
+	assert.deepStrictEqual(events.at(0), "lock:uninstall:undefined");
+	assert.deepStrictEqual(events.at(-1), "unlock");
+
+	// a hook that never runs the operation is an error, not "0 steps"
+	const skipping = new Migrate({ wrapRun: async () => {} });
+	skipping.addVersion("1", noop, noop);
+	await assert.rejects(() => skipping.up(), /without calling and awaiting run\(\)/);
+	assert.deepStrictEqual(await skipping.getActiveVersion(), undefined);
+});
+
+test("removeVersion", async () => {
+	const m = new Migrate();
+	const v1 = m.addVersion("1", noop, noop);
+	m.addVersion("2", noop, noop);
+	m.addVersion("3", noop, noop);
+	await m.setActiveVersion("2");
+
+	// not registered
+	assert.deepStrictEqual(await m.removeVersion("9.9.9"), false);
+
+	// the active version stays: removing it would orphan the marker
+	await assert.rejects(() => m.removeVersion("v2"), /Cannot remove the active version/);
+	assert.deepStrictEqual(m.available, ["1.0.0", "2.0.0", "3.0.0"]);
+
+	// above the active one (a pending version)...
+	assert.deepStrictEqual(await m.removeVersion("3"), true);
+	assert.deepStrictEqual(m.available, ["1.0.0", "2.0.0"]);
+	assert.deepStrictEqual((await m.status()).isAtLatest, true);
+
+	// ...and below it (by instance): the active version is untouched
+	assert.deepStrictEqual(await m.removeVersion(v1), true);
+	assert.deepStrictEqual(m.available, ["2.0.0"]);
+	assert.deepStrictEqual(await m.getActiveVersion(), "2.0.0");
+	assert.deepStrictEqual(await m.uninstall(), 1);
+});
+
+test("errors keep the original error as their cause", async () => {
+	class DbError extends Error {
+		code = "42P07";
+	}
+	const original = new DbError("relation already exists");
+	const boom = () => {
+		throw original;
+	};
+
+	// the up worker
+	const up = new Migrate();
+	up.addVersion("1", boom, noop);
+	await assert.rejects(
+		() => up.up(),
+		(e: Error) => {
+			assert.match(e.message, /The upgrade to version "1\.0\.0" failed/);
+			assert.strictEqual(e.cause, original);
+			return true;
+		},
+	);
+
+	// the down worker
+	const down = new Migrate();
+	down.addVersion("1", noop, noop);
+	down.addVersion("2", noop, boom);
+	await down.up();
+	await assert.rejects(
+		() => down.down(),
+		(e: Error) => {
+			assert.match(e.message, /The downgrade from version "2\.0\.0" failed/);
+			assert.strictEqual(e.cause, original);
+			return true;
+		},
+	);
+	assert.deepStrictEqual(await down.getActiveVersion(), "2.0.0");
+
+	// the marker write
+	let stored: string | undefined;
+	const marker = new Migrate({
+		getActiveVersion: () => stored,
+		setActiveVersion: boom,
+	});
+	marker.addVersion("1", noop, noop);
+	await assert.rejects(
+		() => marker.up(),
+		(e: Error) => {
+			assert.match(e.message, /succeeded, but was unable to save/);
+			assert.strictEqual(e.cause, original);
+			return true;
+		},
+	);
+	assert.deepStrictEqual(stored, undefined);
+});
+
+test("getActiveVersion and setActiveVersion must come together", () => {
+	assert.throws(
+		() => new Migrate({ getActiveVersion: () => undefined }),
+		/must be provided together/,
+	);
+	assert.throws(
+		() => new Migrate({ setActiveVersion: () => {} }),
+		/must be provided together/,
+	);
+	// neither, or both, is fine
+	new Migrate();
+	new Migrate({ getActiveVersion: () => undefined, setActiveVersion: () => {} });
+});
+
+test("a failed external write leaves the in-memory active version alone", async () => {
+	let stored: string | undefined;
+	let fail = false;
+	const m = new Migrate({
+		getActiveVersion: () => stored,
+		setActiveVersion: (v) => {
+			if (fail) throw new Error("write failed");
+			stored = v;
+		},
+	});
+	m.addVersion("1", noop, noop);
+	m.addVersion("2", noop, noop);
+
+	await m.setActiveVersion("1");
+	assert.deepStrictEqual(m.__versions.active?.version, "1.0.0");
+
+	fail = true;
+	await assert.rejects(() => m.setActiveVersion("2"), /write failed/);
+	assert.deepStrictEqual(m.__versions.active?.version, "1.0.0");
+	await assert.rejects(() => m.forceSetActiveVersion("2"), /write failed/);
+	assert.deepStrictEqual(m.__versions.active?.version, "1.0.0");
+});
+
+test("status() with an active version unknown to the registry", async () => {
+	let stored: string | undefined = "9.0.0";
+	const m = new Migrate({
+		getActiveVersion: () => stored,
+		setActiveVersion: (v) => {
+			stored = v;
+		},
+	});
+	m.addVersion("1", noop, noop);
+	m.addVersion("2", noop, noop);
+
+	// above everything registered: nothing is pending (and nothing can run)
+	assert.deepStrictEqual(await m.status(), {
+		active: "9.0.0",
+		latest: "2.0.0",
+		isAtLatest: false,
+		pending: [],
+	});
+	await assert.rejects(() => m.up(), /Version not found/);
+
+	// between registered versions: only the ones above it are pending
+	stored = "1.5.0";
+	assert.deepStrictEqual((await m.status()).pending, ["2.0.0"]);
+});
+
+// Mostly a compile-time test: `pnpm run typecheck` is what checks the context types.
+test("the context is typed, from the constructor argument", async () => {
+	const context = { applied: [] as string[] };
+	let stored: string | null = null;
+
+	const m = new Migrate(
+		{
+			// sync or async, and `null` is as good as `undefined`
+			getActiveVersion: (ctx) => {
+				ctx.applied satisfies string[];
+				return stored;
+			},
+			setActiveVersion: (version, ctx) => {
+				ctx.applied satisfies string[];
+				stored = version ?? null;
+			},
+		},
+		context,
+	);
+
+	// workers may return anything (here: what push/pop return)
+	m.addVersion(
+		"1",
+		(ctx) => ctx.applied.push("one"),
+		(ctx) => ctx.applied.pop(),
+	);
+	m.addVersion(
+		"2",
+		async (ctx) => ctx.applied.push("two"),
+		async (ctx) => ctx.applied.pop(),
+	);
+
+	// @ts-expect-error the context has no such property
+	m.addVersion("3", (ctx) => ctx.nope);
+	await m.removeVersion("3");
+
+	assert.deepStrictEqual(await m.up(), 2);
+	assert.deepStrictEqual(context.applied, ["one", "two"]);
+	assert.deepStrictEqual(stored, "2.0.0");
+
+	assert.deepStrictEqual(await m.uninstall(), 2);
+	assert.deepStrictEqual(context.applied, []);
+	assert.deepStrictEqual(stored, null);
+
+	// a bare `Migrate` accepts an instance of any context
+	const any: Migrate = m;
+	assert.strictEqual(any.context, context);
 });

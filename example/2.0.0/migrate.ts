@@ -1,25 +1,13 @@
-export async function up(ctx: any) {
-	const client = await ctx.pool.connect();
-	try {
-		await client.query(`
-            create table baz (
-                bat serial primary key
-            );    
-        `);
-	} catch (e) {
-		throw e;
-	} finally {
-		client.release();
-	}
+import type { Context } from "../_db.ts";
+
+export async function up({ client }: Context) {
+	await client.query(`
+		create table baz (
+			bat serial primary key
+		);
+	`);
 }
 
-export async function down(ctx: any) {
-	const client = await ctx.pool.connect();
-	try {
-		await client.query(`drop table baz`);
-	} catch (e) {
-		throw e;
-	} finally {
-		client.release();
-	}
+export async function down({ client }: Context) {
+	await client.query(`drop table baz`);
 }

@@ -1,21 +1,9 @@
-export async function up(ctx: any) {
-	const client = await ctx.pool.connect();
-	try {
-		await client.query(`alter table foo add baz varchar(255)`);
-	} catch (e) {
-		throw e;
-	} finally {
-		client.release();
-	}
+import type { Context } from "../_db.ts";
+
+export async function up({ client }: Context) {
+	await client.query(`alter table foo add baz varchar(255)`);
 }
 
-export async function down(ctx: any) {
-	const client = await ctx.pool.connect();
-	try {
-		await client.query(`alter table foo drop baz`);
-	} catch (e) {
-		throw e;
-	} finally {
-		client.release();
-	}
+export async function down({ client }: Context) {
+	await client.query(`alter table foo drop baz`);
 }

@@ -2,8 +2,9 @@ import { existsSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import { Migrate } from "../src/mod.ts";
-import { getActiveVersion, pool, setActiveVersion } from "./_db.ts";
+import type { Migrate, MigrateFn } from "../src/mod.ts";
+import { createPgMigrate } from "../src/pg.ts";
+import { type Context, pool } from "./_db.ts";
 
 const _dirname = basename(import.meta.dirname);
 const _basename = basename(import.meta.filename);
@@ -35,15 +36,11 @@ export async function main() {
 		);
 	}
 
-	const migrate = new Migrate(
-		// options
-		{
-			setActiveVersion,
-			getActiveVersion,
-			logger: flags.verbose ? console.debug : undefined,
-		},
-		{ pool }, // context
-	);
+	// The helper owns the database side: the `__migrate__` version table, one
+	// connection per run, one run at a time across processes, one transaction per step
+	const migrate = createPgMigrate(pool, {
+		logger: flags.verbose ? console.debug : undefined,
+	});
 
 	await add_versions(migrate);
 
@@ -58,32 +55,48 @@ export async function main() {
 	console.log("OK", res);
 }
 
-/** Internal dir walker: every `<semver>/migrate.ts` next to this file is a version */
-async function add_versions(migrate: Migrate, dir = import.meta.dirname) {
+/**
+ * Internal dir walker: every `<semver>/migrate.ts` next to this file is a version.
+ *
+ * A version that cannot be loaded stops the run. Skipping it instead would let the
+ * active version move past it, and a version below the active one is never applied
+ * afterwards.
+ */
+async function add_versions(migrate: Migrate<Context>, dir = import.meta.dirname) {
 	for (const dirEntry of readdirSync(dir, { withFileTypes: true })) {
 		const version = dirEntry.name;
-		const path = join(dir, version, "migrate.ts");
-		if (
-			!dirEntry.isDirectory() ||
-			!/^v?\d+\.\d+\.\d+(-.+)?$/.test(version) ||
-			!existsSync(path)
-		) {
+		if (!dirEntry.isDirectory() || !/^v?\d+\.\d+\.\d+(-.+)?$/.test(version)) {
 			continue;
 		}
-		try {
-			const { up, down } = await import(pathToFileURL(path).href);
 
-			if (typeof up !== "function" || typeof down !== "function") {
-				throw new Error(
-					`Invalid version module for ${version} ` +
-						`(must export both "up" and "down" as functions)`,
-				);
-			}
-
-			migrate.addVersion(version, up, down);
-		} catch (e) {
-			console.warn(`Skipped ${version}... (Details: ${e})`);
+		const path = join(dir, version, "migrate.ts");
+		if (!existsSync(path)) {
+			throw new Error(`Version directory "${version}" has no migrate.ts`);
 		}
+
+		let module: Record<string, unknown>;
+		try {
+			module = await import(pathToFileURL(path).href);
+		} catch (e) {
+			throw new Error(`Unable to load "${version}/migrate.ts" (Details: ${e})`, {
+				cause: e,
+			});
+		}
+
+		// `down` is optional: a module without it is a one-way (irreversible) version
+		const { up, down } = module;
+		if (typeof up !== "function" || (down != null && typeof down !== "function")) {
+			throw new Error(
+				`Invalid version module "${version}/migrate.ts" (it must export "up" ` +
+					`as a function, and "down" too unless the version is one-way)`,
+			);
+		}
+
+		migrate.addVersion(
+			version,
+			up as MigrateFn<Context>,
+			down as MigrateFn<Context> | undefined,
+		);
 	}
 }
 

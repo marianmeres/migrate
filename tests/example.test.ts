@@ -39,9 +39,9 @@ test("undo / redo example", async () => {
 
 	await add("hey");
 	await add("ho");
-	await add("lets");
+	await add("let's");
 	await add("go");
-	assert.deepStrictEqual(doc, ["hey", "ho", "lets", "go"]);
+	assert.deepStrictEqual(doc, ["hey", "ho", "let's", "go"]);
 	assert.deepStrictEqual(await history.getActiveVersion(), "4.0.0");
 
 	await undo();
@@ -49,10 +49,10 @@ test("undo / redo example", async () => {
 	assert.deepStrictEqual(doc, ["hey", "ho"]);
 
 	await redo();
-	assert.deepStrictEqual(doc, ["hey", "ho", "lets"]);
+	assert.deepStrictEqual(doc, ["hey", "ho", "let's"]);
 
 	await add("rock");
-	assert.deepStrictEqual(doc, ["hey", "ho", "lets", "rock"]);
+	assert.deepStrictEqual(doc, ["hey", "ho", "let's", "rock"]);
 	// "go" is gone
 	assert.deepStrictEqual(history.available, [
 		"0.0.0",
@@ -71,6 +71,6 @@ test("undo / redo example", async () => {
 	assert.deepStrictEqual(await undo(), 0); // nothing to undo
 
 	await history.up();
-	assert.deepStrictEqual(doc, ["hey", "ho", "lets", "rock"]);
+	assert.deepStrictEqual(doc, ["hey", "ho", "let's", "rock"]);
 	assert.deepStrictEqual(await history.getActiveVersion(), "5.0.0");
 });

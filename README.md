@@ -4,21 +4,21 @@
 [![JSR version](https://jsr.io/badges/@marianmeres/migrate)](https://jsr.io/@marianmeres/migrate)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-A general-purpose extensible versioning framework for managing incremental, bi-directional
+A general-purpose, extensible versioning framework for managing incremental, bidirectional
 changes.
 
-Possible use cases may include:
+Possible use cases include:
 
-- db migrations,
-- undo/redo systems,
-- progress change tracking,
-- install/uninstall systems...
+- database migrations
+- undo/redo systems
+- progress tracking
+- install/uninstall systems
 
 ## How does it work?
 
-Under the hood it is essentially an ordered collection of `up` and `down` callback pairs labeled
-with a semantic version string (and every upgrade or downgrade is then a serial execution of
-the relevant `up`'s or `down`'s).
+Under the hood, it is essentially an ordered collection of `up` and `down` callback pairs,
+each labeled with a semantic version string. Every upgrade or downgrade is then a serial
+execution of the relevant `up` or `down` callbacks.
 
 ## Installation
 
@@ -48,18 +48,18 @@ m.addVersion('1.2.3', upFn, downFn, optionalComment);
 // register an irreversible (one-way) migration with `null` for down
 m.addVersion('1.2.4', upFn, null, 'one-way');
 
-// remove a version again (any but the active one)
+// remove a version (any but the active one)
 await m.removeVersion('1.2.4');
 
 // get/set the system's current version (initially undefined)
 await m.setActiveVersion('7.8.9');
 const current = await m.getActiveVersion();
 
-// migrate up or down (returns number of applied steps)
+// migrate up or down (returns the number of applied steps)
 await m.up('latest' | 'major' | 'minor' | 'patch' | version);
 await m.down('initial' | 'major' | 'minor' | 'patch' | version);
 
-// complete removal (downgrades past initial version)
+// complete removal (downgrades past the initial version)
 await m.uninstall();
 
 // inspect without mutating state: up(), down() and uninstall() run exactly their plan
@@ -71,24 +71,28 @@ const status = await m.status();                // { active, latest, isAtLatest,
 await m.forceSetActiveVersion('1.2.3');
 ```
 
-Concurrent calls to `up()`, `down()` and `uninstall()` on the same `Migrate` instance are automatically serialized.
+Concurrent calls to `up()`, `down()` and `uninstall()` on the same `Migrate` instance are
+automatically serialized.
 
 A `down()` or `uninstall()` whose path crosses an irreversible version is refused before any
 of it runs, and `plan()` shows it upfront (`reversible: false` on the step).
 
 A failed worker is rethrown with the original error as its `cause`.
 
-For complete API reference including all methods, types, and semver utilities, see [API.md](./API.md). The semver utilities (`normalizeSemver`, `parseSemver`, `compareSemver`) are re-exported from the standalone [@marianmeres/semver](https://jsr.io/@marianmeres/semver) package.
+For the complete API reference, including all methods, types and semver utilities, see
+[API.md](./API.md). The semver utilities (`normalizeSemver`, `parseSemver`,
+`compareSemver`) are re-exported from the standalone
+[@marianmeres/semver](https://jsr.io/@marianmeres/semver) package.
 
 ## Database helpers
 
-For PostgreSQL and SQLite the storage side is ready-made. Each helper returns a `Migrate`
+For PostgreSQL and SQLite, the storage side is ready-made. Each helper returns a `Migrate`
 instance that:
 
 - keeps the active version in a table (`__migrate__` by default, created when missing),
 - lets only one run happen at a time, across processes,
-- makes every step atomic: the version's worker and the write of the active version are
-  kept together or undone together.
+- makes every step atomic: either the version's worker and the write of the active version
+  both take effect, or neither does.
 
 Neither helper adds a dependency. You pass in your own `pg` pool or `node:sqlite`
 database, and optionally `{ table, context, logger }`.
@@ -133,10 +137,11 @@ migrate.addVersion(
 await migrate.up();
 ```
 
-A run is one `BEGIN IMMEDIATE` transaction, which is SQLite's write lock, with a savepoint
-per step. The helper is for `node:sqlite`, the SQLite module built into Node, and takes
-its `DatabaseSync`. The busy timeout (`timeout`) is how long another connection waits for
-a run in progress; without one it fails with "database is locked".
+A run is one `BEGIN IMMEDIATE` transaction, which takes SQLite's write lock, with a
+savepoint per step. The helper is for `node:sqlite`, the SQLite module built into Node, and
+takes its `DatabaseSync`. The busy timeout (`timeout`) is how long another connection waits
+for a run in progress; without one, that connection fails at once with "database is
+locked".
 
 ### Before you rely on them
 
@@ -153,10 +158,11 @@ a run in progress; without one it fails with "database is locked".
 - **Postgres needs a real session.** Connect directly, or through a pooler in session
   mode, not PgBouncer in transaction mode: the advisory lock belongs to the database
   session, which a transaction-mode pooler does not keep between statements.
-- **SQLite runs own their handle.** Anything else written through the same `DatabaseSync`
-  while a run is in progress becomes part of the run's transaction.
+- **A SQLite run owns its database handle.** Anything else written through the same
+  `DatabaseSync` while a run is in progress becomes part of the run's transaction.
 
-The run step by step, and the full reference, are in [API.md](./API.md#database-helpers).
+A step-by-step walkthrough of a run and the full reference are in
+[API.md](./API.md#database-helpers).
 
 ## Atomic steps and locking
 
@@ -207,16 +213,17 @@ Only one value is stored: the active version. Which versions ran is not recorded
 `up()` runs the registered versions above the active one. A version registered later
 _below_ the active one is therefore never applied, and never reported as pending.
 
-So number a new version above the highest one already applied anywhere, and treat a version
-that fails to load as an error instead of skipping it (as the example's loader does).
+So number a new version above the highest one already applied anywhere and, as the
+example's loader does, treat a version that fails to load as an error instead of skipping
+it.
 
-## DB migrate implementation example
+## Database migration example
 
 The [PostgreSQL example](./example/) is a small CLI on top of `createPgMigrate`: every
 `example/<semver>/migrate.ts` exports an `up` and (unless the version is one-way) a
 `down`, and `example/db-migrate.ts` loads them and runs the requested migration. After
-`pnpm install`, copy `.env.example` to `.env`, fill in the connection, and run it with
-Node:
+`pnpm install`, copy `.env.example` to `.env`, fill in the connection details, and run it
+with Node:
 
 ```sh
 node --env-file=.env example/db-migrate.ts --up --target=latest
@@ -258,19 +265,19 @@ const add = (word: string) => act(() => doc.push(word), () => doc.pop());
 
 await add("hey");
 await add("ho");
-await add("lets");
-await add("go");    // doc: ["hey", "ho", "lets", "go"], active version: 4.0.0
+await add("let's");
+await add("go");    // doc: ["hey", "ho", "let's", "go"], active version: 4.0.0
 
 await undo();
 await undo();       // doc: ["hey", "ho"]
-await redo();       // doc: ["hey", "ho", "lets"]
+await redo();       // doc: ["hey", "ho", "let's"]
 
-await add("rock");  // doc: ["hey", "ho", "lets", "rock"], and "go" is gone
+await add("rock");  // doc: ["hey", "ho", "let's", "rock"], and "go" is gone
 await redo();       // 0: nothing to redo
 
 await history.down("initial"); // doc: [], back at version 0
 await undo();                  // 0: nothing to undo
-await history.up();            // doc: ["hey", "ho", "lets", "rock"]
+await history.up();            // doc: ["hey", "ho", "let's", "rock"]
 ```
 
 `undo()` and `redo()` return the number of steps taken, and
@@ -289,9 +296,9 @@ await history.up();            // doc: ["hey", "ho", "lets", "rock"]
 - Plan steps carry `reversible`, and `plan()` also takes `"uninstall"`.
 - `status().pending` lists the versions above the active one by semver order. With an active
   version that is not registered, 1.x listed every version.
-- Errors carry the original error as `cause`. A failed down worker reads "The downgrade from
-  version ..." (was "to"), and a failed uninstall reports the failing step like any other
-  downgrade.
+- Errors carry the original error as `cause`. The error for a failed down worker reads "The
+  downgrade from version ..." (was "to"), and a failed uninstall reports the failing step
+  like any other downgrade.
 - `setActiveVersion()` writes to the external store first: when that throws, the in-memory
   active version does not move.
 - New: the `@marianmeres/migrate/pg` and `@marianmeres/migrate/sqlite` helpers, the
